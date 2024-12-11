@@ -1,4 +1,6 @@
 import mysql.connector
+from datetime import *
+
 def init():
     mydb = mysql.connector.connect(
         host="localhost",
@@ -110,3 +112,46 @@ def get_rows_from_table_with_value(mydb, tableName, columnName, columnValue):
         return myresult
     else:
         print("No column name with name "+ tableName)
+        
+        
+# ron's adding 
+
+def is_username_exists(mydb, username):
+    cursor = mydb.cursor()
+    
+    query = "SELECT COUNT(*) FROM users WHERE Username = %s"
+    cursor.execute(query, (username,))
+    
+    result = cursor.fetchone()
+    
+    cursor.close()
+    
+    return result[0] > 0
+
+
+def update_last_seen(mydb, username):
+    mycursor = mydb.cursor()
+
+    last_seen = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    query = "UPDATE users SET Last_seen = %s WHERE Username = %s"
+
+    mycursor.execute(query, (last_seen, username))
+        
+    mydb.commit()
+                
+    mycursor.close()
+    
+    
+    
+def update_balance(mydb, username, new_balance):
+
+    mycursor = mydb.cursor()
+
+    query = "UPDATE users SET Balance = %s WHERE Username = %s"
+
+    mycursor.execute(query, (new_balance, username))
+    
+    mydb.commit()
+
+    mycursor.close()

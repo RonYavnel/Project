@@ -11,14 +11,24 @@ lock = threading.Lock()
 DB_CONN = init_with_db("StockTradingDB")
 
 def deal_maker(conn, share_price):
-    name = conn.recv(1024).decode()
+    username = conn.recv(1024).decode()
     user_id = conn.recv(1024).decode()
     conn.send(str(share_price).encode())
     balance = int(conn.recv(1024).decode())
-
+    if is_username_exists(DB_CONN, username):
+       update_last_seen(DB_CONN, username)
+    else: 
+        insert_row(
+            DB_CONN, 
+            "users", 
+            "(Username, IP, PORT, Last_seen, Balance)", 
+            "(%s, %s, %s, %s, %s)",
+            (username, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance)
+        )
     while True:
         order = conn.recv(1024).decode()
         if not order:
+            update_last_seen(DB_CONN, username)
             conn.close()
             break
 
@@ -39,10 +49,11 @@ def deal_maker(conn, share_price):
                     "transactions",
                     "(username, userID, side, stock_symbol, share_price, amount, time_stamp)", 
                     "(%s, %s, %s, %s, %s, %s, %s)",
-                    (name, user_id, "S", "AAPL", share_price, amount, datetime.now())
+                    (username, user_id, "S", "AAPL", share_price, amount, datetime.now())
                 )
                 adjustment = int((amount * share_price) * 0.01)
                 share_price = max(1, share_price - adjustment)
+                update_balance(DB_CONN, username, balance)
                 conn.send(f"Sale completed. New balance: {balance}".encode())
             elif side.upper() == "B":
                 if balance >= deal:
@@ -52,10 +63,11 @@ def deal_maker(conn, share_price):
                     "transactions",
                     "(username, userID, side, stock_symbol, share_price, amount, time_stamp)", 
                     "(%s, %s, %s, %s, %s, %s, %s)",
-                    (name, user_id, "B", "AAPL", share_price, amount, datetime.now())
-                )                    
+                    (username, user_id, "B", "AAPL", share_price, amount, datetime.now())
+                    )                    
                     adjustment = int((amount * share_price) * 0.01)
                     share_price += adjustment
+                    update_balance(DB_CONN, username, balance)
                     conn.send(f"Purchase successful. New balance: {balance}".encode())
                 elif balance < deal:
                     conn.send(f"Error: Insufficient balance for this purchase. Your balance is: {balance}".encode())
