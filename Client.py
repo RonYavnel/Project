@@ -16,14 +16,21 @@ client_socket.send(user_id.encode())
 share_price = int(client_socket.recv(1024).decode())
 print(f"Current share price: {share_price}")
 
-while True:
-    try:
-        balance = int(input("enter your balance: "))
-        break
-    except ValueError:
-        print("Invalid balance entered. Please enter a digital value.")
+is_registered = client_socket.recv(1024).decode()
+if (is_registered == '0'):
+    while True:
+        try:
+            balance = int(input("Enter your balance: "))
+            break
+        except ValueError:
+            print("Invalid balance entered. Please enter a digital value.")
         
-client_socket.send(str(balance).encode())
+    client_socket.send(str(balance).encode())
+    
+else:
+    current_balance = client_socket.recv(1024).decode()
+    print(f"Your current balance: {current_balance}")    
+    
 while True:
     order = input("enter your order (side$amount): ")
     client_socket.send(order.encode())

@@ -14,10 +14,14 @@ def deal_maker(conn, share_price):
     username = conn.recv(1024).decode()
     user_id = conn.recv(1024).decode()
     conn.send(str(share_price).encode())
-    balance = int(conn.recv(1024).decode())
     if is_username_exists(DB_CONN, username):
-       update_last_seen(DB_CONN, username)
-    else: 
+        conn.send("1".encode())
+        balance = get_user_balance(DB_CONN, username)
+        update_last_seen(DB_CONN, username)
+        conn.send(str(balance).encode())
+    else:
+        conn.send("0".encode()) 
+        balance = int(conn.recv(1024).decode())
         insert_row(
             DB_CONN, 
             "users", 

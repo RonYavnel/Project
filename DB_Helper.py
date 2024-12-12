@@ -155,3 +155,19 @@ def update_balance(mydb, username, new_balance):
     mydb.commit()
 
     mycursor.close()
+    
+    
+import mysql.connector
+
+def get_user_balance(mydb, username):
+    cursor = mydb.cursor()
+
+    query = "SELECT Balance FROM Users WHERE Username = %s"
+
+    cursor.execute(query, (username,))
+
+    result = cursor.fetchone()
+    
+    cursor.close()
+
+    return result[0]
