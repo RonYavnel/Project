@@ -20,6 +20,7 @@ def deal_maker(conn, share_price):
         update_last_seen(DB_CONN, username)
         conn.send(str(balance).encode())
     else:
+        print("hello")
         conn.send("0".encode()) 
         balance = int(conn.recv(1024).decode())
         insert_row(
