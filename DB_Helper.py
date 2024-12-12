@@ -171,3 +171,124 @@ def get_user_balance(mydb, username):
     cursor.close()
 
     return result[0]
+
+
+def update_current_price(mydb, stock_symbol, new_price):
+
+    mycursor = mydb.cursor()
+
+    query = "UPDATE stocks SET current_price = %s WHERE Symbol = %s"
+
+    mycursor.execute(query, (new_price, stock_symbol))
+    
+    mydb.commit()
+
+    mycursor.close()
+    
+def update_highest_price(mydb, stock_symbol, new_highest_price):
+
+    mycursor = mydb.cursor()
+
+    query = "UPDATE stocks SET highest_price = %s WHERE Symbol = %s"
+
+    mycursor.execute(query, (new_highest_price, stock_symbol))
+    
+    mydb.commit()
+
+    mycursor.close()
+    
+    
+def update_lowest_price(mydb, stock_symbol, new_lowest_price):
+
+    mycursor = mydb.cursor()
+
+    query = "UPDATE stocks SET lowest_price = %s WHERE Symbol = %s"
+
+    mycursor.execute(query, (new_lowest_price, stock_symbol))
+    
+    mydb.commit()
+
+    mycursor.close()
+    
+    
+def get_highest_share_price(mydb, stock_symbol):
+    
+    cursor = mydb.cursor()
+
+    query = "SELECT highest_price FROM Stocks WHERE Symbol = %s"
+
+    cursor.execute(query, (stock_symbol,))
+
+    result = cursor.fetchone()
+    
+    cursor.close()
+
+    return result[0]
+
+
+def get_lowest_share_price(mydb, stock_symbol):
+    
+    cursor = mydb.cursor()
+
+    query = "SELECT lowest_price FROM Stocks WHERE Symbol = %s"
+
+    cursor.execute(query, (stock_symbol,))
+
+    result = cursor.fetchone()
+    
+    cursor.close()
+
+    return result[0]
+
+
+
+def update_shares_sold(db_conn, stock_symbol, new_amount):
+    
+    cursor = db_conn.cursor()
+
+    query = """
+        UPDATE Stocks
+        SET shares_sold = shares_sold + %s
+        WHERE symbol = %s
+    """
+
+    cursor.execute(query, (new_amount, stock_symbol))
+
+    db_conn.commit()
+
+    cursor.close()
+    
+    
+import mysql.connector
+
+def get_current_share_price(db_conn, stock_symbol):
+    
+    cursor = db_conn.cursor()
+
+    query = "SELECT current_price FROM Stocks WHERE symbol = %s"
+
+    cursor.execute(query, (stock_symbol,))
+
+    result = cursor.fetchone()
+    
+    cursor.close()
+
+    return result[0]
+
+def update_num_of_shares(db_conn, stock_symbol, new_amount):
+    
+    cursor = db_conn.cursor()
+
+    query = """
+        UPDATE Stocks
+        SET num_of_shares = num_of_shares + %s
+        WHERE symbol = %s
+    """
+
+    cursor.execute(query, (new_amount, stock_symbol))
+
+    db_conn.commit()
+
+    cursor.close()
+    
+

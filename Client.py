@@ -42,5 +42,5 @@ while True:
     print(response)
     
     share_price = int(client_socket.recv(1024).decode())
-    print(f"Updated share price: {share_price}")    
+    print(f"New share price: {share_price}")    
 

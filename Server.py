@@ -7,20 +7,20 @@ from datetime import *
 
 share_price = 220
 lock = threading.Lock()
-
+stock_symbol = 'AAPL'
 DB_CONN = init_with_db("StockTradingDB")
+num_of_shares = 50000
 
 def deal_maker(conn, share_price):
     username = conn.recv(1024).decode()
     user_id = conn.recv(1024).decode()
-    conn.send(str(share_price).encode())
+    conn.send(str(get_current_share_price(DB_CONN, stock_symbol)).encode())
     if is_username_exists(DB_CONN, username):
         conn.send("1".encode())
         balance = get_user_balance(DB_CONN, username)
         update_last_seen(DB_CONN, username)
         conn.send(str(balance).encode())
     else:
-        print("hello")
         conn.send("0".encode()) 
         balance = int(conn.recv(1024).decode())
         insert_row(
@@ -58,21 +58,19 @@ def deal_maker(conn, share_price):
                 )
                 adjustment = int((amount * share_price) * 0.01)
                 share_price = max(1, share_price - adjustment)
-                update_balance(DB_CONN, username, balance)
                 conn.send(f"Sale completed. New balance: {balance}".encode())
             elif side.upper() == "B":
                 if balance >= deal:
                     balance -= deal
                     insert_row(
-                    DB_CONN,
-                    "transactions",
-                    "(username, userID, side, stock_symbol, share_price, amount, time_stamp)", 
-                    "(%s, %s, %s, %s, %s, %s, %s)",
-                    (username, user_id, "B", "AAPL", share_price, amount, datetime.now())
+                        DB_CONN,
+                        "transactions",
+                        "(username, userID, side, stock_symbol, share_price, amount, time_stamp)", 
+                        "(%s, %s, %s, %s, %s, %s, %s)",
+                        (username, user_id, "B", "AAPL", share_price, amount, datetime.now())
                     )                    
                     adjustment = int((amount * share_price) * 0.01)
                     share_price += adjustment
-                    update_balance(DB_CONN, username, balance)
                     conn.send(f"Purchase successful. New balance: {balance}".encode())
                 elif balance < deal:
                     conn.send(f"Error: Insufficient balance for this purchase. Your balance is: {balance}".encode())
@@ -82,7 +80,19 @@ def deal_maker(conn, share_price):
                 conn.send("Error: Invalid side parameter. Use 'B' for buy or 'S' for sell.".encode())
         except ValueError:
             conn.send("Error: Invalid data format.".encode())
-
+        
+        update_last_seen(DB_CONN, username)
+        update_balance(DB_CONN, username, balance)
+        if side.upper() == "S":
+            update_num_of_shares(DB_CONN, stock_symbol, amount)
+        else:
+            update_num_of_shares(DB_CONN, stock_symbol, -amount)
+        update_current_price(DB_CONN, stock_symbol, share_price)
+        update_shares_sold(DB_CONN, stock_symbol, amount)
+        if share_price > get_highest_share_price(DB_CONN, stock_symbol):
+            update_highest_price(DB_CONN, stock_symbol, share_price)
+        if share_price < get_lowest_share_price(DB_CONN, stock_symbol):
+            update_lowest_price(DB_CONN, stock_symbol, share_price)
         conn.send(str(share_price).encode())
 
 HOST = socket.gethostname()
