@@ -66,7 +66,6 @@ def delete_table(mydb, tableName):
     if tableName in tables:
         mycursor.execute(query)
 
-# TODO show rows of tables
 
 def insert_row(mydb, tableName, columnNames, columnTypes, columnValues):
     mycursor = mydb.cursor()
@@ -116,11 +115,11 @@ def get_rows_from_table_with_value(mydb, tableName, columnName, columnValue):
         
 # ron's adding 
 
-def is_username_exists(mydb, username, user_id):
+def is_username_exists(mydb, username, password):
     cursor = mydb.cursor()
     
-    query = "SELECT COUNT(*) FROM users WHERE Username = %s AND User_id = %s"
-    cursor.execute(query, (username, user_id))
+    query = "SELECT COUNT(*) FROM users WHERE username = %s AND password = %s"
+    cursor.execute(query, (username, password))
     
     result = cursor.fetchone()
     
@@ -129,14 +128,14 @@ def is_username_exists(mydb, username, user_id):
     return result[0] > 0
 
 
-def update_last_seen(mydb, username, user_id):
+def update_last_seen(mydb, username, password):
     mycursor = mydb.cursor()
 
     last_seen = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    query = "UPDATE users SET Last_seen = %s WHERE Username = %s AND User_id = %s"
+    query = "UPDATE users SET Last_seen = %s WHERE username = %s AND password = %s"
 
-    mycursor.execute(query, (last_seen, username, user_id))
+    mycursor.execute(query, (last_seen, username, password))
         
     mydb.commit()
                 
@@ -144,25 +143,25 @@ def update_last_seen(mydb, username, user_id):
     
     
     
-def update_balance(mydb, username, user_id, new_balance):
+def update_balance(mydb, username, password, new_balance):
 
     mycursor = mydb.cursor()
 
-    query = "UPDATE users SET Balance = %s WHERE Username = %s AND User_id = %s"
+    query = "UPDATE users SET Balance = %s WHERE username = %s AND password = %s"
 
-    mycursor.execute(query, (new_balance, username, user_id))
+    mycursor.execute(query, (new_balance, username, password))
     
     mydb.commit()
 
     mycursor.close()
     
     
-def get_user_balance(mydb, username, user_id):
+def get_user_balance(mydb, username, password):
     cursor = mydb.cursor()
 
-    query = "SELECT Balance FROM Users WHERE Username = %s AND User_id = %s"
+    query = "SELECT Balance FROM Users WHERE username = %s AND password = %s"
 
-    cursor.execute(query, (username,user_id))
+    cursor.execute(query, (username, password))
 
     result = cursor.fetchone()
     
@@ -175,7 +174,7 @@ def update_current_price(mydb, stock_symbol, new_price):
 
     mycursor = mydb.cursor()
 
-    query = "UPDATE stocks SET current_price = %s WHERE Symbol = %s"
+    query = "UPDATE stocks SET current_price = %s WHERE symbol = %s"
 
     mycursor.execute(query, (new_price, stock_symbol))
     
@@ -187,7 +186,7 @@ def update_highest_price(mydb, stock_symbol, new_highest_price):
 
     mycursor = mydb.cursor()
 
-    query = "UPDATE stocks SET highest_price = %s WHERE Symbol = %s"
+    query = "UPDATE stocks SET highest_price = %s WHERE symbol = %s"
 
     mycursor.execute(query, (new_highest_price, stock_symbol))
     
@@ -200,7 +199,7 @@ def update_lowest_price(mydb, stock_symbol, new_lowest_price):
 
     mycursor = mydb.cursor()
 
-    query = "UPDATE stocks SET lowest_price = %s WHERE Symbol = %s"
+    query = "UPDATE stocks SET lowest_price = %s WHERE symbol = %s"
 
     mycursor.execute(query, (new_lowest_price, stock_symbol))
     
@@ -226,7 +225,7 @@ def get_highest_share_price(mydb, stock_symbol):
     
     cursor = mydb.cursor()
 
-    query = "SELECT highest_price FROM Stocks WHERE Symbol = %s"
+    query = "SELECT highest_price FROM Stocks WHERE symbol = %s"
 
     cursor.execute(query, (stock_symbol,))
 
@@ -241,7 +240,7 @@ def get_lowest_share_price(mydb, stock_symbol):
     
     cursor = mydb.cursor()
 
-    query = "SELECT lowest_price FROM Stocks WHERE Symbol = %s"
+    query = "SELECT lowest_price FROM Stocks WHERE symbol = %s"
 
     cursor.execute(query, (stock_symbol,))
 
@@ -287,26 +286,40 @@ def update_num_of_shares(db_conn, stock_symbol, new_amount):
     cursor.close()
     
 
-def update_ip_and_port(db_conn, conn, username, user_id):
+def update_ip_and_port(db_conn, conn, username, password):
     
     cursor = db_conn.cursor()
 
     query = """
         UPDATE Users
-        SET IP = %s
-        WHERE Username = %s AND User_id = %s
+        SET ip = %s
+        WHERE username = %s AND password = %s
     """
 
-    cursor.execute(query, (conn.getpeername()[0], username, user_id))
+    cursor.execute(query, (conn.getpeername()[0], username, password))
 
     query = """
         UPDATE Users
-        SET PORT = %s
-        WHERE Username = %s AND User_id = %s
+        SET port = %s
+        WHERE username = %s AND password = %s
     """
     
-    cursor.execute(query, (conn.getpeername()[1], username, user_id))
+    cursor.execute(query, (conn.getpeername()[1], username, password))
 
     db_conn.commit()
 
     cursor.close()
+    
+def get_client_id(db_conn, username, password):
+    
+    cursor = db_conn.cursor()
+
+    query = "SELECT client_id FROM Users WHERE username = %s AND password = %s"
+
+    cursor.execute(query, (username, password))
+
+    result = cursor.fetchone()
+    
+    cursor.close()
+
+    return result[0]

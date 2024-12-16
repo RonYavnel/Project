@@ -13,13 +13,13 @@ num_of_shares = 50000
 
 def deal_maker(conn, share_price):
     username = conn.recv(1024).decode()
-    user_id = conn.recv(1024).decode()
+    password = conn.recv(1024).decode()
     conn.send(str(get_current_share_price(DB_CONN, stock_symbol)).encode())
-    if is_username_exists(DB_CONN, username, user_id):
+    if is_username_exists(DB_CONN, username, password):
         conn.send("1".encode())
-        balance = get_user_balance(DB_CONN, username, user_id)
-        update_ip_and_port(DB_CONN, conn, username, user_id)
-        update_last_seen(DB_CONN, username, user_id)
+        balance = get_user_balance(DB_CONN, username, password)
+        update_ip_and_port(DB_CONN, conn, username, password)
+        update_last_seen(DB_CONN, username, password)
         conn.send(str(balance).encode())
     else:
         conn.send("0".encode()) 
@@ -27,14 +27,14 @@ def deal_maker(conn, share_price):
         insert_row(
             DB_CONN, 
             "users", 
-            "(Username, User_id, IP, PORT, Last_seen, Balance)", 
+            "(username, password, ip, port, last_seen, balance)", 
             "(%s, %s, %s, %s, %s, %s)",
-            (username, user_id, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance)
+            (username, password, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance)
         )
     while True:
         order = conn.recv(1024).decode()
         if not order:
-            update_last_seen(DB_CONN, username, user_id)
+            update_last_seen(DB_CONN, username, password)
             conn.close()
             break
 
@@ -53,9 +53,9 @@ def deal_maker(conn, share_price):
                 insert_row(
                     DB_CONN,
                     "transactions",
-                    "(username, userID, side, stock_symbol, share_price, amount, time_stamp)", 
+                    "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
                     "(%s, %s, %s, %s, %s, %s, %s)",
-                    (username, user_id, "S", "AAPL", share_price, amount, datetime.now())
+                    (username, get_client_id(DB_CONN, username, password), "S", stock_symbol, share_price, amount, datetime.now())
                 )
                 adjustment = int((amount * share_price) * 0.01)
                 share_price = max(1, share_price - adjustment)
@@ -66,9 +66,9 @@ def deal_maker(conn, share_price):
                     insert_row(
                         DB_CONN,
                         "transactions",
-                        "(username, userID, side, stock_symbol, share_price, amount, time_stamp)", 
+                        "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
                         "(%s, %s, %s, %s, %s, %s, %s)",
-                        (username, user_id, "B", "AAPL", share_price, amount, datetime.now())
+                        (username, get_client_id(DB_CONN, username, password), "B", stock_symbol, share_price, amount, datetime.now())
                     )                    
                     adjustment = int((amount * share_price) * 0.01)
                     share_price += adjustment
@@ -82,8 +82,8 @@ def deal_maker(conn, share_price):
         except ValueError:
             conn.send("Error: Invalid data format.".encode())
         
-        update_last_seen(DB_CONN, username, user_id)
-        update_balance(DB_CONN, username, user_id, balance)
+        update_last_seen(DB_CONN, username, password)
+        update_balance(DB_CONN, username, password, balance)
         if side.upper() == "S":
             update_num_of_shares(DB_CONN, stock_symbol, amount)
         else:

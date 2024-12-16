@@ -1,17 +1,22 @@
-import socket
+# Import the socket module for communication
+import socket 
 
+# Set the host and the port
 HOST = socket.gethostname()
 PORT = 5000
 
+# Create a socket
 client_socket = socket.socket()
 
+# Connect the socket to the server (the server is local)
 client_socket.connect((HOST, PORT))
 
+# Fill in personal details - username and password
 name = input("Enter your name: ")
 client_socket.send(name.encode())
 
-user_id = input("Enter your user id: ")
-client_socket.send(user_id.encode())
+password = input("Enter your password: ")
+client_socket.send(password.encode())
 
 share_price = int(client_socket.recv(1024).decode())
 print(f"Current share price: {share_price}")
