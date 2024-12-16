@@ -116,11 +116,11 @@ def get_rows_from_table_with_value(mydb, tableName, columnName, columnValue):
         
 # ron's adding 
 
-def is_username_exists(mydb, username):
+def is_username_exists(mydb, username, user_id):
     cursor = mydb.cursor()
     
-    query = "SELECT COUNT(*) FROM users WHERE Username = %s"
-    cursor.execute(query, (username,))
+    query = "SELECT COUNT(*) FROM users WHERE Username = %s AND User_id = %s"
+    cursor.execute(query, (username, user_id))
     
     result = cursor.fetchone()
     
@@ -129,14 +129,14 @@ def is_username_exists(mydb, username):
     return result[0] > 0
 
 
-def update_last_seen(mydb, username):
+def update_last_seen(mydb, username, user_id):
     mycursor = mydb.cursor()
 
     last_seen = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    query = "UPDATE users SET Last_seen = %s WHERE Username = %s"
+    query = "UPDATE users SET Last_seen = %s WHERE Username = %s AND User_id = %s"
 
-    mycursor.execute(query, (last_seen, username))
+    mycursor.execute(query, (last_seen, username, user_id))
         
     mydb.commit()
                 
@@ -144,27 +144,25 @@ def update_last_seen(mydb, username):
     
     
     
-def update_balance(mydb, username, new_balance):
+def update_balance(mydb, username, user_id, new_balance):
 
     mycursor = mydb.cursor()
 
-    query = "UPDATE users SET Balance = %s WHERE Username = %s"
+    query = "UPDATE users SET Balance = %s WHERE Username = %s AND User_id = %s"
 
-    mycursor.execute(query, (new_balance, username))
+    mycursor.execute(query, (new_balance, username, user_id))
     
     mydb.commit()
 
     mycursor.close()
     
     
-import mysql.connector
-
-def get_user_balance(mydb, username):
+def get_user_balance(mydb, username, user_id):
     cursor = mydb.cursor()
 
-    query = "SELECT Balance FROM Users WHERE Username = %s"
+    query = "SELECT Balance FROM Users WHERE Username = %s AND User_id = %s"
 
-    cursor.execute(query, (username,))
+    cursor.execute(query, (username,user_id))
 
     result = cursor.fetchone()
     
@@ -210,6 +208,19 @@ def update_lowest_price(mydb, stock_symbol, new_lowest_price):
 
     mycursor.close()
     
+def get_current_share_price(db_conn, stock_symbol):
+    
+    cursor = db_conn.cursor()
+
+    query = "SELECT current_price FROM Stocks WHERE symbol = %s"
+
+    cursor.execute(query, (stock_symbol,))
+
+    result = cursor.fetchone()
+    
+    cursor.close()
+
+    return result[0]
     
 def get_highest_share_price(mydb, stock_symbol):
     
@@ -258,22 +269,6 @@ def update_shares_sold(db_conn, stock_symbol, new_amount):
 
     cursor.close()
     
-    
-import mysql.connector
-
-def get_current_share_price(db_conn, stock_symbol):
-    
-    cursor = db_conn.cursor()
-
-    query = "SELECT current_price FROM Stocks WHERE symbol = %s"
-
-    cursor.execute(query, (stock_symbol,))
-
-    result = cursor.fetchone()
-    
-    cursor.close()
-
-    return result[0]
 
 def update_num_of_shares(db_conn, stock_symbol, new_amount):
     
@@ -292,3 +287,26 @@ def update_num_of_shares(db_conn, stock_symbol, new_amount):
     cursor.close()
     
 
+def update_ip_and_port(db_conn, conn, username, user_id):
+    
+    cursor = db_conn.cursor()
+
+    query = """
+        UPDATE Users
+        SET IP = %s
+        WHERE Username = %s AND User_id = %s
+    """
+
+    cursor.execute(query, (conn.getpeername()[0], username, user_id))
+
+    query = """
+        UPDATE Users
+        SET PORT = %s
+        WHERE Username = %s AND User_id = %s
+    """
+    
+    cursor.execute(query, (conn.getpeername()[1], username, user_id))
+
+    db_conn.commit()
+
+    cursor.close()

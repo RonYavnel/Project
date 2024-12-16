@@ -5,20 +5,21 @@ import mysql.connector
 from DB_Helper import *
 from datetime import *
 
-share_price = 220
 lock = threading.Lock()
 stock_symbol = 'AAPL'
 DB_CONN = init_with_db("StockTradingDB")
+share_price = get_current_share_price(DB_CONN, stock_symbol)
 num_of_shares = 50000
 
 def deal_maker(conn, share_price):
     username = conn.recv(1024).decode()
     user_id = conn.recv(1024).decode()
     conn.send(str(get_current_share_price(DB_CONN, stock_symbol)).encode())
-    if is_username_exists(DB_CONN, username):
+    if is_username_exists(DB_CONN, username, user_id):
         conn.send("1".encode())
-        balance = get_user_balance(DB_CONN, username)
-        update_last_seen(DB_CONN, username)
+        balance = get_user_balance(DB_CONN, username, user_id)
+        update_ip_and_port(DB_CONN, conn, username, user_id)
+        update_last_seen(DB_CONN, username, user_id)
         conn.send(str(balance).encode())
     else:
         conn.send("0".encode()) 
@@ -26,14 +27,14 @@ def deal_maker(conn, share_price):
         insert_row(
             DB_CONN, 
             "users", 
-            "(Username, IP, PORT, Last_seen, Balance)", 
-            "(%s, %s, %s, %s, %s)",
-            (username, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance)
+            "(Username, User_id, IP, PORT, Last_seen, Balance)", 
+            "(%s, %s, %s, %s, %s, %s)",
+            (username, user_id, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance)
         )
     while True:
         order = conn.recv(1024).decode()
         if not order:
-            update_last_seen(DB_CONN, username)
+            update_last_seen(DB_CONN, username, user_id)
             conn.close()
             break
 
@@ -81,8 +82,8 @@ def deal_maker(conn, share_price):
         except ValueError:
             conn.send("Error: Invalid data format.".encode())
         
-        update_last_seen(DB_CONN, username)
-        update_balance(DB_CONN, username, balance)
+        update_last_seen(DB_CONN, username, user_id)
+        update_balance(DB_CONN, username, user_id, balance)
         if side.upper() == "S":
             update_num_of_shares(DB_CONN, stock_symbol, amount)
         else:
