@@ -4,33 +4,55 @@ from time import sleep
 import mysql.connector
 from DB_Helper import *
 from datetime import *
+from server_constants import *
 
-lock = threading.Lock()
-stock_symbol = 'AAPL'
-DB_CONN = init_with_db("StockTradingDB")
-share_price = get_current_share_price(DB_CONN, stock_symbol)
-num_of_shares = 50000
 
-def deal_maker(conn, share_price):
-    username = conn.recv(1024).decode()
-    password = conn.recv(1024).decode()
-    conn.send(str(get_current_share_price(DB_CONN, stock_symbol)).encode())
+# Function that handles a new connection
+# If user exists - update his ip, port and last_seen
+# If not exists - get balance from him and insert his details
+# Eventually, returns the balance of the client
+def user_handling_and_balance(conn, username, password):
     if is_username_exists(DB_CONN, username, password):
-        conn.send("1".encode())
-        balance = get_user_balance(DB_CONN, username, password)
-        update_ip_and_port(DB_CONN, conn, username, password)
-        update_last_seen(DB_CONN, username, password)
-        conn.send(str(balance).encode())
+        conn.send("1".encode()) # Sends confirmation to the client
+        balance = get_user_balance(DB_CONN, username, password) # Gets clients balance
+        update_ip_and_port(DB_CONN, conn, username, password) # Updates ip and port
+        update_last_seen(DB_CONN, username, password) # Updates last_seen
+        conn.send(str(balance).encode()) # Sends the cliet his balance
     else:
-        conn.send("0".encode()) 
-        balance = int(conn.recv(1024).decode())
-        insert_row(
+        conn.send("0".encode()) # Sends confirmation to the client
+        balance = int(conn.recv(1024).decode()) # Gets from the client his balance
+        insert_row(    # Inserts the details of the new client to the database
             DB_CONN, 
             "users", 
             "(username, password, ip, port, last_seen, balance)", 
             "(%s, %s, %s, %s, %s, %s)",
             (username, password, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance)
         )
+    return balance # Returns the balance of the client
+
+# Funtion that update all the data about the client and the share after transaction
+def update_all_data(conn, username, password, balance, side, amount, stock_symbol, share_price):
+    update_last_seen(DB_CONN, username, password) # Updates last_seen time of the client
+    update_balance(DB_CONN, username, password, balance) # Updates client's balance
+    if side.upper() == "S":
+        update_num_of_shares(DB_CONN, stock_symbol, amount) # If shares are sold - add those shares to the num of free shares
+    else:
+        update_num_of_shares(DB_CONN, stock_symbol, -amount) # If shares are bought - subtract this amount from the num of free shares
+        update_shares_sold(DB_CONN, stock_symbol, amount) # Add the new amount of sold shares to database
+    update_current_price(DB_CONN, stock_symbol, share_price) # Update the current price of a share after transaction
+    if share_price > get_highest_share_price(DB_CONN, stock_symbol): # Update the highest_share_price if needed
+        update_highest_price(DB_CONN, stock_symbol, share_price)
+    if share_price < get_lowest_share_price(DB_CONN, stock_symbol):  # Update the lowest_share_price if needed
+        update_lowest_price(DB_CONN, stock_symbol, share_price)
+    conn.send(str(share_price).encode()) # Send the updated share price to the client
+
+
+
+def deal_maker(conn, share_price):
+    username = conn.recv(1024).decode()
+    password = conn.recv(1024).decode()
+    conn.send(str(get_current_share_price(DB_CONN, stock_symbol)).encode())
+    balance = user_handling_and_balance(conn, username, password)
     while True:
         order = conn.recv(1024).decode()
         if not order:
@@ -81,29 +103,20 @@ def deal_maker(conn, share_price):
                 conn.send("Error: Invalid side parameter. Use 'B' for buy or 'S' for sell.".encode())
         except ValueError:
             conn.send("Error: Invalid data format.".encode())
-        
-        update_last_seen(DB_CONN, username, password)
-        update_balance(DB_CONN, username, password, balance)
-        if side.upper() == "S":
-            update_num_of_shares(DB_CONN, stock_symbol, amount)
-        else:
-            update_num_of_shares(DB_CONN, stock_symbol, -amount)
-        update_current_price(DB_CONN, stock_symbol, share_price)
-        update_shares_sold(DB_CONN, stock_symbol, amount)
-        if share_price > get_highest_share_price(DB_CONN, stock_symbol):
-            update_highest_price(DB_CONN, stock_symbol, share_price)
-        if share_price < get_lowest_share_price(DB_CONN, stock_symbol):
-            update_lowest_price(DB_CONN, stock_symbol, share_price)
-        conn.send(str(share_price).encode())
+            
+        update_all_data(conn, username, password, balance, side, amount, stock_symbol, share_price)
 
-HOST = socket.gethostname()
-PORT = 5000
 
-server_socket = socket.socket()
-server_socket.bind((HOST, PORT))
-server_socket.listen(10)
+def run_server():
+    server_socket = socket.socket()
+    server_socket.bind((HOST, PORT))
+    server_socket.listen(10)
 
-while True:
-    conn, address = server_socket.accept()
-    client_thread = threading.Thread(target=deal_maker, args=(conn, share_price))
-    client_thread.start()
+    while True:
+        conn, address = server_socket.accept()
+        client_thread = threading.Thread(target=deal_maker, args=(conn, share_price))
+        client_thread.start()
+    
+
+if __name__ == '__main__':
+    run_server()

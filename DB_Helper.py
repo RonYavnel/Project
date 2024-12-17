@@ -1,6 +1,7 @@
 import mysql.connector
 from datetime import *
 
+# Initiate a connection with server without database
 def init():
     mydb = mysql.connector.connect(
         host="localhost",
@@ -9,7 +10,7 @@ def init():
     )
     return mydb
   
-  
+# Initiate a connection with server and with an existing database  
 def init_with_db(dbName):
     mydb = mysql.connector.connect(
         host="localhost",
@@ -36,6 +37,7 @@ def create_new_database(mydb, dbName):
     if dbName not in show_databases(mydb):
         mycursor.execute("CREATE DATABASE " + dbName)
 
+
 # Function to show tables in the database
 def show_tables(mydb):
     
@@ -46,10 +48,8 @@ def show_tables(mydb):
         tables.append(i[0])
     return tables       
 
+
 # Function to create a table in the database
-# Pay Attention: expected format of params is :
-#               (name VARCHAR(255), address VARCHAR(255))")
-# also NOTICE that you need to have a COUPLE of () around params
 def create_table(mydb, tableName, params):
     tables = show_tables(mydb)
     mycursor = mydb.cursor()
@@ -58,6 +58,7 @@ def create_table(mydb, tableName, params):
     if tableName not in  tables:
         mycursor.execute(query)
 
+# Function to delete a table in given database
 def delete_table(mydb, tableName):
     tables = show_tables(mydb)
     mycursor = mydb.cursor()
@@ -66,7 +67,7 @@ def delete_table(mydb, tableName):
     if tableName in tables:
         mycursor.execute(query)
 
-
+# Function to insert new row to a table in database
 def insert_row(mydb, tableName, columnNames, columnTypes, columnValues):
     mycursor = mydb.cursor()
     tables = show_tables(mydb)
@@ -77,6 +78,7 @@ def insert_row(mydb, tableName, columnNames, columnTypes, columnValues):
     else:
         print("No table exists with name "+ tableName)
 
+# Function to delete a row in a table in database
 def delete_row(mydb, tableName, columnName, columnValue):
     mycursor = mydb.cursor()
     tables = show_tables(mydb)
@@ -89,7 +91,7 @@ def delete_row(mydb, tableName, columnName, columnValue):
         print("No column name with name "+ tableName)
 
 
-
+# Function that returns all the rows of a table in a database
 def get_all_rows(mydb, tableName):
     mycursor = mydb.cursor()
     sql = "SELECT * FROM " + tableName
@@ -100,6 +102,7 @@ def get_all_rows(mydb, tableName):
         rows.append(i)
     return rows
     
+# Function that gets all the rows from a table with condition (name of a column and its value)
 def get_rows_from_table_with_value(mydb, tableName, columnName, columnValue):
     mycursor = mydb.cursor()
     tables = show_tables(mydb)
@@ -113,8 +116,9 @@ def get_rows_from_table_with_value(mydb, tableName, columnName, columnValue):
         print("No column name with name "+ tableName)
         
         
-# ron's adding 
+# Ron's adding 
 
+# Function that checks if username with given name and password exists
 def is_username_exists(mydb, username, password):
     cursor = mydb.cursor()
     
@@ -128,6 +132,7 @@ def is_username_exists(mydb, username, password):
     return result[0] > 0
 
 
+# Function that updates the "last_seen" value in the users table for now.
 def update_last_seen(mydb, username, password):
     mycursor = mydb.cursor()
 
@@ -142,7 +147,7 @@ def update_last_seen(mydb, username, password):
     mycursor.close()
     
     
-    
+# Function that gets a username and password and updates his balance  
 def update_balance(mydb, username, password, new_balance):
 
     mycursor = mydb.cursor()
@@ -155,11 +160,11 @@ def update_balance(mydb, username, password, new_balance):
 
     mycursor.close()
     
-    
+# Function that gets a username and password and returns this user's balance  
 def get_user_balance(mydb, username, password):
     cursor = mydb.cursor()
 
-    query = "SELECT Balance FROM Users WHERE username = %s AND password = %s"
+    query = "SELECT balance FROM Users WHERE username = %s AND password = %s"
 
     cursor.execute(query, (username, password))
 
@@ -170,6 +175,7 @@ def get_user_balance(mydb, username, password):
     return result[0]
 
 
+# Function that gets a stock symbol and updates the pric of a single share
 def update_current_price(mydb, stock_symbol, new_price):
 
     mycursor = mydb.cursor()
@@ -182,6 +188,7 @@ def update_current_price(mydb, stock_symbol, new_price):
 
     mycursor.close()
     
+# Function that gets a stock symbol and updates the share's highest_price to the new_highest_price
 def update_highest_price(mydb, stock_symbol, new_highest_price):
 
     mycursor = mydb.cursor()
@@ -194,7 +201,7 @@ def update_highest_price(mydb, stock_symbol, new_highest_price):
 
     mycursor.close()
     
-    
+# Function that gets a stock symbol and updates the share's lowest_price to the new_lowest_price
 def update_lowest_price(mydb, stock_symbol, new_lowest_price):
 
     mycursor = mydb.cursor()
@@ -207,6 +214,7 @@ def update_lowest_price(mydb, stock_symbol, new_lowest_price):
 
     mycursor.close()
     
+# Function that gets a stock symbol and returns the current price of a single share
 def get_current_share_price(db_conn, stock_symbol):
     
     cursor = db_conn.cursor()
@@ -221,6 +229,7 @@ def get_current_share_price(db_conn, stock_symbol):
 
     return result[0]
     
+# Function that gets a stock symbol and returns the highest price of a single share
 def get_highest_share_price(mydb, stock_symbol):
     
     cursor = mydb.cursor()
@@ -235,7 +244,7 @@ def get_highest_share_price(mydb, stock_symbol):
 
     return result[0]
 
-
+# Function that gets a stock symbol and returns the lowest price of a single share
 def get_lowest_share_price(mydb, stock_symbol):
     
     cursor = mydb.cursor()
@@ -251,7 +260,7 @@ def get_lowest_share_price(mydb, stock_symbol):
     return result[0]
 
 
-
+# Function that gets a stock symbol and adds the new amount of sold shares
 def update_shares_sold(db_conn, stock_symbol, new_amount):
     
     cursor = db_conn.cursor()
@@ -268,7 +277,8 @@ def update_shares_sold(db_conn, stock_symbol, new_amount):
 
     cursor.close()
     
-
+# Function that get a stock symbol and updates the new number of free shares.
+# (new_amount can be positive while selling or negative while buying) 
 def update_num_of_shares(db_conn, stock_symbol, new_amount):
     
     cursor = db_conn.cursor()
@@ -285,7 +295,7 @@ def update_num_of_shares(db_conn, stock_symbol, new_amount):
 
     cursor.close()
     
-
+# Function that gets a username and password and updates this user's current ip and port
 def update_ip_and_port(db_conn, conn, username, password):
     
     cursor = db_conn.cursor()
@@ -309,7 +319,9 @@ def update_ip_and_port(db_conn, conn, username, password):
     db_conn.commit()
 
     cursor.close()
-    
+  
+
+# Function that gets a username and password and returns the client_id of the user  
 def get_client_id(db_conn, username, password):
     
     cursor = db_conn.cursor()
