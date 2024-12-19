@@ -138,11 +138,16 @@ def deal_maker(conn, share_price):
 
 
 def run_server():
+    
+    # Initiate a socket
     server_socket = socket.socket()
     server_socket.bind((HOST, PORT))
+    
+    # Wait for connections from clients
     server_socket.listen(10)
 
     while True:
+        # For each connection: accept, and send it to thread
         conn, address = server_socket.accept()
         client_thread = threading.Thread(target=deal_maker, args=(conn, share_price))
         client_thread.start()
