@@ -117,188 +117,188 @@ def get_rows_from_table_with_value(mydb, tableName, columnName, columnValue):
         
         
 # Ron's adding 
-
-# Function that checks if username with given name and password exists
-def is_username_exists(mydb, username, password):
+# Abstract function for handling "fetchone" type sql query functions with one parameter
+def fetchone_functions_one_param(mydb, query, param):
     cursor = mydb.cursor()
-    
-    query = "SELECT COUNT(*) FROM users WHERE username = %s AND password = %s"
-    cursor.execute(query, (username, password))
-    
+
+    cursor.execute(query, (param,))
+
     result = cursor.fetchone()
     
     cursor.close()
+
+    return result[0]
+
+# Abstract function for handling "fetchone" type sql query functions with two parameters
+def fetchone_functions_two_params(mydb, query, param_a, param_b):
+    cursor = mydb.cursor()
+
+    cursor.execute(query, (param_a, param_b))
+
+    result = cursor.fetchone()
     
-    return result[0] > 0
+    cursor.close()
 
+    return result[0]
 
-# Function that updates the "last_seen" value in the users table for now.
-def update_last_seen(mydb, username, password):
+# Abstract function for handling "commit" type sql query functions with one parameter
+def commit_functions_one_param(mydb, query, param_a):
     mycursor = mydb.cursor()
 
-    last_seen = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    query = "UPDATE users SET Last_seen = %s WHERE username = %s AND password = %s"
-
-    mycursor.execute(query, (last_seen, username, password))
+    mycursor.execute(query, (param_a, ))
         
     mydb.commit()
                 
     mycursor.close()
     
     
+# Abstract function for handling "commit" type sql query functions with two parameters
+def commit_functions_two_params(mydb, query, param_a, param_b):
+    mycursor = mydb.cursor()
+
+    mycursor.execute(query, (param_a, param_b))
+        
+    mydb.commit()
+                
+    mycursor.close()
+    
+    
+# Abstract function for handling "commit" type sql query functions with three parameters
+def commit_functions_three_params(mydb, query, param_a, param_b, param_c):
+    mycursor = mydb.cursor()
+
+    mycursor.execute(query, (param_a, param_b, param_c))
+        
+    mydb.commit()
+                
+    mycursor.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Function that checks if username with given name and password exists
+def is_username_exists(mydb, username, password):
+    
+    return fetchone_functions_two_params(mydb,
+                                          "SELECT COUNT(*) FROM users WHERE username = %s AND password = %s",
+                                          username,
+                                          password) > 0
+
+
+# Function that updates the "last_seen" value in the users table for now.
+def update_last_seen(mydb, username, password):
+    
+    commit_functions_three_params(mydb,
+                                  "UPDATE users SET Last_seen = %s WHERE username = %s AND password = %s",
+                                  datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                  username,
+                                  password)
+    
+    
 # Function that gets a username and password and updates his balance  
 def update_balance(mydb, username, password, new_balance):
 
-    mycursor = mydb.cursor()
-
-    query = "UPDATE users SET Balance = %s WHERE username = %s AND password = %s"
-
-    mycursor.execute(query, (new_balance, username, password))
+    commit_functions_three_params(mydb,
+                                  "UPDATE users SET Balance = %s WHERE username = %s AND password = %s",
+                                  new_balance,
+                                  username,
+                                  password)
     
-    mydb.commit()
 
-    mycursor.close()
-    
 # Function that gets a username and password and returns this user's balance  
 def get_user_balance(mydb, username, password):
-    cursor = mydb.cursor()
-
-    query = "SELECT balance FROM Users WHERE username = %s AND password = %s"
-
-    cursor.execute(query, (username, password))
-
-    result = cursor.fetchone()
     
-    cursor.close()
-
-    return result[0]
+    return fetchone_functions_two_params(mydb, 
+                                          "SELECT balance FROM Users WHERE username = %s AND password = %s", 
+                                          username, 
+                                          password)
 
 
 # Function that gets a stock symbol and updates the pric of a single share
 def update_current_price(mydb, stock_symbol, new_price):
 
-    mycursor = mydb.cursor()
+    commit_functions_two_params(mydb,
+                                "UPDATE stocks SET current_price = %s WHERE symbol = %s",
+                                new_price,
+                                stock_symbol)
 
-    query = "UPDATE stocks SET current_price = %s WHERE symbol = %s"
-
-    mycursor.execute(query, (new_price, stock_symbol))
-    
-    mydb.commit()
-
-    mycursor.close()
     
 # Function that gets a stock symbol and updates the share's highest_price to the new_highest_price
 def update_highest_price(mydb, stock_symbol, new_highest_price):
-
-    mycursor = mydb.cursor()
-
-    query = "UPDATE stocks SET highest_price = %s WHERE symbol = %s"
-
-    mycursor.execute(query, (new_highest_price, stock_symbol))
     
-    mydb.commit()
-
-    mycursor.close()
+    commit_functions_two_params(mydb,
+                                "UPDATE stocks SET highest_price = %s WHERE symbol = %s",
+                                new_highest_price,
+                                stock_symbol)
+    
     
 # Function that gets a stock symbol and updates the share's lowest_price to the new_lowest_price
 def update_lowest_price(mydb, stock_symbol, new_lowest_price):
-
-    mycursor = mydb.cursor()
-
-    query = "UPDATE stocks SET lowest_price = %s WHERE symbol = %s"
-
-    mycursor.execute(query, (new_lowest_price, stock_symbol))
     
-    mydb.commit()
+    commit_functions_two_params(mydb, 
+                                "UPDATE stocks SET lowest_price = %s WHERE symbol = %s",
+                                new_lowest_price,
+                                stock_symbol)
 
-    mycursor.close()
     
 # Function that gets a stock symbol and returns the current price of a single share
-def get_current_share_price(db_conn, stock_symbol):
+def get_current_share_price(mydb, stock_symbol):
     
-    cursor = db_conn.cursor()
-
-    query = "SELECT current_price FROM Stocks WHERE symbol = %s"
-
-    cursor.execute(query, (stock_symbol,))
-
-    result = cursor.fetchone()
+    return fetchone_functions_one_param(mydb,
+                                         "SELECT current_price FROM Stocks WHERE symbol = %s",
+                                         stock_symbol)
     
-    cursor.close()
-
-    return result[0]
     
 # Function that gets a stock symbol and returns the highest price of a single share
 def get_highest_share_price(mydb, stock_symbol):
     
-    cursor = mydb.cursor()
+    return fetchone_functions_one_param(mydb,
+                                         "SELECT highest_price FROM Stocks WHERE symbol = %s",
+                                         stock_symbol)
 
-    query = "SELECT highest_price FROM Stocks WHERE symbol = %s"
-
-    cursor.execute(query, (stock_symbol,))
-
-    result = cursor.fetchone()
-    
-    cursor.close()
-
-    return result[0]
 
 # Function that gets a stock symbol and returns the lowest price of a single share
 def get_lowest_share_price(mydb, stock_symbol):
     
-    cursor = mydb.cursor()
+    return fetchone_functions_one_param(mydb,
+                                         "SELECT lowest_price FROM Stocks WHERE symbol = %s",
+                                         stock_symbol)
 
-    query = "SELECT lowest_price FROM Stocks WHERE symbol = %s"
-
-    cursor.execute(query, (stock_symbol,))
-
-    result = cursor.fetchone()
-    
-    cursor.close()
-
-    return result[0]
 
 
 # Function that gets a stock symbol and adds the new amount of sold shares
-def update_shares_sold(db_conn, stock_symbol, new_amount):
+def update_shares_sold(mydb, stock_symbol, new_amount):
     
-    cursor = db_conn.cursor()
-
-    query = """
-        UPDATE Stocks
-        SET shares_sold = shares_sold + %s
-        WHERE symbol = %s
-    """
-
-    cursor.execute(query, (new_amount, stock_symbol))
-
-    db_conn.commit()
-
-    cursor.close()
+    commit_functions_two_params(mydb,
+                                """ UPDATE Stocks SET shares_sold = shares_sold + %s WHERE symbol = %s """,
+                                new_amount,
+                                stock_symbol)
+    
     
 # Function that get a stock symbol and updates the new number of free shares.
 # (new_amount can be positive while selling or negative while buying) 
-def update_num_of_shares(db_conn, stock_symbol, new_amount):
+def update_num_of_shares(mydb, stock_symbol, new_amount):
     
-    cursor = db_conn.cursor()
+    commit_functions_two_params(mydb,
+                                """ UPDATE Stocks SET num_of_shares = num_of_shares + %s WHERE symbol = %s """,
+                                new_amount, 
+                                stock_symbol)
+    
 
-    query = """
-        UPDATE Stocks
-        SET num_of_shares = num_of_shares + %s
-        WHERE symbol = %s
-    """
-
-    cursor.execute(query, (new_amount, stock_symbol))
-
-    db_conn.commit()
-
-    cursor.close()
     
 # Function that gets a username and password and updates this user's current ip and port
-def update_ip_and_port(db_conn, conn, username, password):
+def update_ip_and_port(mydb, conn, username, password):
     
-    cursor = db_conn.cursor()
+    cursor = mydb.cursor()
 
     query = """
         UPDATE Users
@@ -316,22 +316,15 @@ def update_ip_and_port(db_conn, conn, username, password):
     
     cursor.execute(query, (conn.getpeername()[1], username, password))
 
-    db_conn.commit()
+    mydb.commit()
 
     cursor.close()
   
 
 # Function that gets a username and password and returns the client_id of the user  
-def get_client_id(db_conn, username, password):
+def get_client_id(mydb, username, password):
     
-    cursor = db_conn.cursor()
-
-    query = "SELECT client_id FROM Users WHERE username = %s AND password = %s"
-
-    cursor.execute(query, (username, password))
-
-    result = cursor.fetchone()
-    
-    cursor.close()
-
-    return result[0]
+    return fetchone_functions_two_params(mydb,
+                                          "SELECT client_id FROM Users WHERE username = %s AND password = %s",
+                                          username,
+                                          password)
