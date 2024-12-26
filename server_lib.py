@@ -1,187 +1,44 @@
-import mysql.connector
-from datetime import *
+from db_tools import *
+from server_constants import *
 
-# Initiate a connection with server without database
-def init():
-    mydb = mysql.connector.connect(
-        host="localhost",
-        user="Ron Yavnel",
-        password="2612"
-    )
-    return mydb
-  
-# Initiate a connection with server and with an existing database  
-def init_with_db(dbName):
-    mydb = mysql.connector.connect(
-        host="localhost",
-        user="Ron Yavnel",
-        password="2612",
-        database=dbName
-    )
-    return mydb  
-    
-# Function to show the database
-def show_databases(mydb):
-    mycursor = mydb.cursor()
-    mycursor.execute("SHOW DATABASES")
-    databases = []
-    for i in  mycursor:
-        databases.append(i[0])
-    return databases
-
-
-# Function to create a db in the database
-def create_new_database(mydb, dbName):
-    
-    mycursor = mydb.cursor()
-    if dbName not in show_databases(mydb):
-        mycursor.execute("CREATE DATABASE " + dbName)
-
-
-# Function to show tables in the database
-def show_tables(mydb):
-    
-    mycursor = mydb.cursor()
-    mycursor.execute("SHOW TABLES")
-    tables = []
-    for i in  mycursor:
-        tables.append(i[0])
-    return tables       
-
-
-# Function to create a table in the database
-def create_table(mydb, tableName, params):
-    tables = show_tables(mydb)
-    mycursor = mydb.cursor()
-    query = "CREATE TABLE " + tableName + " " + params
-    print(query)
-    if tableName not in  tables:
-        mycursor.execute(query)
-
-# Function to delete a table in given database
-def delete_table(mydb, tableName):
-    tables = show_tables(mydb)
-    mycursor = mydb.cursor()
-    query = "DROP TABLE " + tableName 
-    print(query)
-    if tableName in tables:
-        mycursor.execute(query)
-
-# Function to insert new row to a table in database
-def insert_row(mydb, tableName, columnNames, columnTypes, columnValues):
-    mycursor = mydb.cursor()
-    tables = show_tables(mydb)
-    if tableName in tables:
-        sql = "INSERT INTO " + tableName + " "+ columnNames +" VALUES " + columnTypes
-        mycursor.execute(sql, columnValues)
-        mydb.commit()
+# Function that handles a new connection
+# If user exists - update his ip, port and last_seen
+# If not exists - get balance from him and insert his details
+# Eventually, returns the balance of the client
+def user_handling_and_balance(conn, username, password):
+    if is_username_exists(DB_CONN, username, password):
+        conn.send("1".encode()) # Sends confirmation to the client
+        balance = get_user_balance(DB_CONN, username, password) # Gets clients balance
+        update_ip_and_port(DB_CONN, conn, username, password) # Updates ip and port
+        update_last_seen(DB_CONN, username, password) # Updates last_seen
+        conn.send(str(balance).encode()) # Sends the cliet his balance
     else:
-        print("No table exists with name "+ tableName)
+        conn.send("0".encode()) # Sends confirmation to the client
+        balance = int(conn.recv(1024).decode()) # Gets from the client his balance
+        insert_row(    # Inserts the details of the new client to the database
+            DB_CONN, 
+            "users", 
+            "(username, password, ip, port, last_seen, balance)", 
+            "(%s, %s, %s, %s, %s, %s)",
+            (username, password, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance)
+        )
+    return balance # Returns the balance of the client
 
-# Function to delete a row in a table in database
-def delete_row(mydb, tableName, columnName, columnValue):
-    mycursor = mydb.cursor()
-    tables = show_tables(mydb)
-    if tableName in tables:
-        sql = "DELETE FROM " + tableName + " WHERE "+ columnName + " =  '" + columnValue + "'"
-        print(sql)
-        mycursor.execute(sql)
-        mydb.commit()
+# Funtion that update all the data about the client and the share after transaction
+def update_all_data(conn, username, password, balance, side, amount, stock_symbol, share_price):
+    update_last_seen(DB_CONN, username, password) # Updates last_seen time of the client
+    update_balance(DB_CONN, username, password, balance) # Updates client's balance
+    if side.upper() == "S":
+        update_num_of_shares(DB_CONN, stock_symbol, amount) # If shares are sold - add those shares to the num of free shares
     else:
-        print("No column name with name "+ tableName)
-
-
-# Function that returns all the rows of a table in a database
-def get_all_rows(mydb, tableName):
-    mycursor = mydb.cursor()
-    sql = "SELECT * FROM " + tableName
-    mycursor.execute(sql)
-    rows = []
-    print(mycursor)
-    for i in mycursor:
-        rows.append(i)
-    return rows
-    
-# Function that gets all the rows from a table with condition (name of a column and its value)
-def get_rows_from_table_with_value(mydb, tableName, columnName, columnValue):
-    mycursor = mydb.cursor()
-    tables = show_tables(mydb)
-    if tableName in tables:
-        sql = "SELECT * FROM " + tableName + " WHERE "+ columnName + " =  '" + columnValue + "'"
-        print(sql)
-        mycursor.execute(sql)
-        myresult = mycursor.fetchall()
-        return myresult
-    else:
-        print("No column name with name "+ tableName)
-        
-        
-# Ron's adding 
-# Abstract function for handling "fetchone" type sql query functions with one parameter
-def fetchone_functions_one_param(mydb, query, param):
-    cursor = mydb.cursor()
-
-    cursor.execute(query, (param,))
-
-    result = cursor.fetchone()
-    
-    cursor.close()
-
-    return result[0]
-
-# Abstract function for handling "fetchone" type sql query functions with two parameters
-def fetchone_functions_two_params(mydb, query, param_a, param_b):
-    cursor = mydb.cursor()
-
-    cursor.execute(query, (param_a, param_b))
-
-    result = cursor.fetchone()
-    
-    cursor.close()
-
-    return result[0]
-
-# Abstract function for handling "commit" type sql query functions with one parameter
-def commit_functions_one_param(mydb, query, param_a):
-    mycursor = mydb.cursor()
-
-    mycursor.execute(query, (param_a, ))
-        
-    mydb.commit()
-                
-    mycursor.close()
-    
-    
-# Abstract function for handling "commit" type sql query functions with two parameters
-def commit_functions_two_params(mydb, query, param_a, param_b):
-    mycursor = mydb.cursor()
-
-    mycursor.execute(query, (param_a, param_b))
-        
-    mydb.commit()
-                
-    mycursor.close()
-    
-    
-# Abstract function for handling "commit" type sql query functions with three parameters
-def commit_functions_three_params(mydb, query, param_a, param_b, param_c):
-    mycursor = mydb.cursor()
-
-    mycursor.execute(query, (param_a, param_b, param_c))
-        
-    mydb.commit()
-                
-    mycursor.close()
-
-
-
-
-
-
-
-
-
-
+        update_num_of_shares(DB_CONN, stock_symbol, -amount) # If shares are bought - subtract this amount from the num of free shares
+        update_shares_sold(DB_CONN, stock_symbol, amount) # Add the new amount of sold shares to database
+    update_current_price(DB_CONN, stock_symbol, share_price) # Update the current price of a share after transaction
+    if share_price > get_highest_share_price(DB_CONN, stock_symbol): # Update the highest_share_price if needed
+        update_highest_price(DB_CONN, stock_symbol, share_price)
+    if share_price < get_lowest_share_price(DB_CONN, stock_symbol):  # Update the lowest_share_price if needed
+        update_lowest_price(DB_CONN, stock_symbol, share_price)
+    conn.send(str(share_price).encode()) # Send the updated share price to the client
 
 
 
