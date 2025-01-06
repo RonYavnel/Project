@@ -1,7 +1,5 @@
 import socket
 import threading
-from time import sleep
-import mysql.connector
 from datetime import *
 from server_constants import *
 # my helper libraries
@@ -15,10 +13,14 @@ num_of_shares = 50000
 
 # When a user connects, its thread referred to deal_maker function
 def deal_maker(conn, share_price):
-    username = conn.recv(1024).decode() # Get username
-    password = conn.recv(1024).decode() # Get his password
+    print("in deal_maker")
+    username = conn.recv(6).decode() # Get username
+    print ("username is: ", username)
+    password = conn.recv(6).decode() # Get his password
+    print("password is: ", password)
     conn.send(str(get_current_share_price(DB_CONN, stock_symbol)).encode()) # Send the client the updated share price
     balance = user_handling_and_balance(conn, username, password) # Check if the user exists
+    print(f"User's balance is {balance}.")
     # If not - creates it and asks for balance
     # If yes - takes the recent balance
     while True:
@@ -114,6 +116,7 @@ def run_server():
     while True:
         # For each connection: accept, and send it to thread
         conn, address = server_socket.accept()
+        print("before thread")
         client_thread = threading.Thread(target=deal_maker, args=(conn, share_price))
         client_thread.start()
     
