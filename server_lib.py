@@ -2,11 +2,29 @@ from db_tools import *
 from server_constants import *
 
 # Function that handles a new connection
+def handle_user_connection(conn):
+    username = conn.recv(6).decode() # Get the username of the client
+    password = conn.recv(6).decode() # Get the password of the client
+    while True:
+        if (not is_user_exists(DB_CONN, username, password) and is_username_exists(DB_CONN, username)): 
+            # If the user not exists but there already is a user with such a username
+            conn.send("2".encode())
+            username = conn.recv(6).decode()
+            password = conn.recv(6).decode()
+        elif (is_user_exists(DB_CONN, username, password)): # If the user exists
+            conn.send("1".encode())
+            break
+        else:
+            conn.send("0".encode())
+            break
+    return username, password
+
+
 # If user exists - update his ip, port and last_seen
 # If not exists - get balance from him and insert his details
 # Eventually, returns the balance of the client
-def user_handling_and_balance(conn, username, password):
-    if is_username_exists(DB_CONN, username, password):
+def handle_user_balance(conn, username, password):
+    if is_user_exists(DB_CONN, username, password):
         conn.send("1".encode()) # Sends confirmation to the client
         balance = get_user_balance(DB_CONN, username, password) # Gets clients balance
         update_ip_and_port(DB_CONN, conn, username, password) # Updates ip and port
@@ -41,16 +59,20 @@ def update_all_data(conn, username, password, balance, side, amount, stock_symbo
     conn.send(str(share_price).encode()) # Send the updated share price to the client
 
 
-
 # Function that checks if username with given name and password exists
-def is_username_exists(mydb, username, password):
+def is_user_exists(mydb, username, password):
     
     return fetchone_functions_two_params(mydb,
                                           "SELECT COUNT(*) FROM users WHERE username = %s AND password = %s",
                                           username,
                                           password) > 0
-
-
+    
+# Function that checks if username with given name exists
+def is_username_exists(mydb, username):
+    return fetchone_functions_one_param(mydb,
+                                        "SELECT COUNT(*) FROM users WHERE username = %s",
+                                        username) > 0
+    
 # Function that updates the "last_seen" value in the users table for now.
 def update_last_seen(mydb, username, password):
     
@@ -75,7 +97,7 @@ def update_balance(mydb, username, password, new_balance):
 def get_user_balance(mydb, username, password):
     
     return fetchone_functions_two_params(mydb, 
-                                          "SELECT balance FROM Users WHERE username = %s AND password = %s", 
+                                          "SELECT balance FROM users WHERE username = %s AND password = %s", 
                                           username, 
                                           password)
 

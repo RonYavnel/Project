@@ -15,10 +15,8 @@ def general_password_input(msg, default_val):
         return default_val
     return getpass(msg)
 
-# TODO : don't show password
 # TODO - 2 : save hash of passw and compare to hash of entered
-# TODO - 3: figure out why we have multiple users and delete foreven bad ones
-# TODO -4 : unique ID for users
+# TODO -4 : unique ID for stocks
 # TODO --- mutex lock for "space"
 # TODO - list of stocks
 
@@ -35,6 +33,22 @@ def get_and_send_username_and_password(client_socket):
 
     password = general_password_input("Enter your password: ", "10010")
     client_socket.send(password.encode())
+    
+    while True:
+        result = client_socket.recv(6).decode() 
+        if ( result == '2'):
+            print("Username already exists. Please enter a new one.")
+            username = general_input("Enter your username: ", "ron  ")
+            client_socket.send(username.encode())
+            password = general_password_input("Enter your password: ", "10010")
+            client_socket.send(password.encode())
+        elif (result == '1'):
+            print(f"Welcome back {username}!")
+            break
+        else:
+            print("Nice to meet you! You are now registered.")
+            break
+        
 
 def initialize_client_balance(client_socket):
     
@@ -45,8 +59,7 @@ def initialize_client_balance(client_socket):
     if (is_registered == '0'):
         while True:
             try:
-                print("You are not registered. Please enter your balance.")
-                balance = int(general_input("Enter your balance: ", "10000"))
+                balance = int(general_input("Please enter your balance: ", "10000"))
                 # If valid - break from the loop
                 break
             except ValueError:
@@ -58,8 +71,7 @@ def initialize_client_balance(client_socket):
     else:
         current_balance = client_socket.recv(1024).decode()
         print(f"Your current balance: {current_balance}")    
-
-
+  
 def run_client():
     # Create a socket
     client_socket = socket.socket()
@@ -70,13 +82,14 @@ def run_client():
     get_and_send_username_and_password(client_socket)
     if DEBUG:
         print(f"moooooooooo")
-    
-    # Recieve the most updated
+
+    initialize_client_balance(client_socket)
+        
+    # Recieve the most updated share price from the server
     share_price = int(client_socket.recv(1024).decode())
     if not DEBUG:
         print(f"Current share price: {share_price}")
-
-    initialize_client_balance(client_socket)
+        
         
     # Listen to client's orders until he sends an empty message
     while True:

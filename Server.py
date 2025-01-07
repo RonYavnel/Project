@@ -14,15 +14,14 @@ num_of_shares = 50000
 # When a user connects, its thread referred to deal_maker function
 def deal_maker(conn, share_price):
     print("in deal_maker")
-    username = conn.recv(6).decode() # Get username
-    print ("username is: ", username)
-    password = conn.recv(6).decode() # Get his password
-    print("password is: ", password)
-    conn.send(str(get_current_share_price(DB_CONN, stock_symbol)).encode()) # Send the client the updated share price
-    balance = user_handling_and_balance(conn, username, password) # Check if the user exists
-    print(f"User's balance is {balance}.")
+    username, password = handle_user_connection(conn) # Get username and password
+    # print ("username is: ", username)
+    # print("password is: ", password)
+    balance = handle_user_balance(conn, username, password) # Check if the user exists
     # If not - creates it and asks for balance
     # If yes - takes the recent balance
+    conn.send(str(get_current_share_price(DB_CONN, stock_symbol)).encode()) # Send the client the updated share price
+
     while True:
         order = conn.recv(1024).decode() # Recieve the order
         if not order: 
@@ -119,7 +118,16 @@ def run_server():
         print("before thread")
         client_thread = threading.Thread(target=deal_maker, args=(conn, share_price))
         client_thread.start()
-    
+        
+def initialize_database():
+    mydb = init()
+    create_new_database(mydb, "stocktradingdb")
+    mydb_db = init_with_db("stocktradingdb")
+    create_table(mydb_db, "clients",
+                 "(id INT, ip VARCHAR(255), port INT, name VARCHAR(255), product VARCHAR(255), date VARCHAR(255), status VARCHAR(255), clientId INT, credibility INT)")
+
+    return mydb_db
 
 if __name__ == '__main__':
-    run_server()
+    db = initialize_database()
+    run_server(db)
