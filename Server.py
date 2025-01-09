@@ -6,28 +6,28 @@ from server_constants import *
 from server_lib import *
 from db_tools import *
 
-stock_symbol = 'AAPL'
-share_price = get_current_share_price(DB_CONN, stock_symbol)
-num_of_shares = 50000
-
 
 # When a user connects, its thread referred to deal_maker function
-def deal_maker(conn, share_price):
+def deal_maker(mydb, conn):
     print("in deal_maker")
-    username, password = handle_user_connection(conn) # Get username and password
+    username, password = handle_user_connection(mydb, conn) # Get username and password
     # print ("username is: ", username)
     # print("password is: ", password)
-    balance = handle_user_balance(conn, username, password) # Check if the user exists
+    balance = handle_user_balance(mydb, conn, username, password) # Check if the user exists
     # If not - creates it and asks for balance
     # If yes - takes the recent balance
-    conn.send(str(get_current_share_price(DB_CONN, stock_symbol)).encode()) # Send the client the updated share price
+    list_of_stocks = get_all_column_values(mydb, "stocks", "symbol") # Get the stocks from the database
+    conn.send(str(list_of_stocks).encode()) # Send the client the list of stocks
+    stock_symbol = conn.recv(1024).decode() # Recieve the stock symbol from the client
+    share_price = get_current_share_price(mydb, stock_symbol) # Get the current share price
+    conn.send(str(share_price).encode()) # Send the client the updated share price
 
     while True:
         order = conn.recv(1024).decode() # Recieve the order
         if not order: 
             # If the order is empty: update the last_seen time of the user 
             # and terminate the connection
-            update_last_seen(DB_CONN, username, password)
+            update_last_seen(mydb, username, password)
             conn.close()
             break
 
@@ -53,11 +53,11 @@ def deal_maker(conn, share_price):
                 balance += deal
                 # Document the transaction in the Transactions table
                 insert_row(
-                    DB_CONN,
+                    mydb,
                     "transactions",
                     "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
                     "(%s, %s, %s, %s, %s, %s, %s)",
-                    (username, get_client_id(DB_CONN, username, password), "S", stock_symbol, share_price, amount, datetime.now())
+                    (username, get_client_id(mydb, username, password), "S", stock_symbol, share_price, amount, datetime.now())
                 )
                 # Adjust the share price according to the amount of shares that have been sold.
                 adjustment = int((amount * share_price) * 0.01)
@@ -74,11 +74,11 @@ def deal_maker(conn, share_price):
                     balance -= deal
                     # Document the transaction in the Transactions table
                     insert_row(
-                        DB_CONN,
+                        mydb,
                         "transactions",
                         "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
                         "(%s, %s, %s, %s, %s, %s, %s)",
-                        (username, get_client_id(DB_CONN, username, password), "B", stock_symbol, share_price, amount, datetime.now())
+                        (username, get_client_id(mydb, username, password), "B", stock_symbol, share_price, amount, datetime.now())
                     )        
                     # Adjust the share price according to the amount of shares that have been bought.            
                     adjustment = int((amount * share_price) * 0.01)
@@ -98,7 +98,7 @@ def deal_maker(conn, share_price):
             conn.send("Error: Invalid data format.".encode())
         
         # If the transactions is completed successfully - update all user's and share's data
-        update_all_data(conn, username, password, balance, side, amount, stock_symbol, share_price)
+        update_all_data(mydb, conn, username, password, balance, side, amount, stock_symbol, share_price)
 
 def init_server():
     # Initiate a socket
@@ -109,25 +109,33 @@ def init_server():
     server_socket.listen(10)
     return server_socket
 
-def run_server():
+def run_server(mydb):
 
     server_socket = init_server()
     while True:
         # For each connection: accept, and send it to thread
-        conn, address = server_socket.accept()
-        print("before thread")
-        client_thread = threading.Thread(target=deal_maker, args=(conn, share_price))
+        conn = server_socket.accept()[0]
+        client_thread = threading.Thread(target=deal_maker, args=(mydb, conn))
         client_thread.start()
         
+        
 def initialize_database():
-    mydb = init()
-    create_new_database(mydb, "stocktradingdb")
-    mydb_db = init_with_db("stocktradingdb")
-    create_table(mydb_db, "clients",
-                 "(id INT, ip VARCHAR(255), port INT, name VARCHAR(255), product VARCHAR(255), date VARCHAR(255), status VARCHAR(255), clientId INT, credibility INT)")
-
-    return mydb_db
+    # Initiate the connection with the sql server
+    my_sql_server = init()
+    # Create a new database and connect to it
+    create_new_database(my_sql_server, "stocktradingdb")
+    mydb = init_with_db("stocktradingdb")
+    # Create the tables in the database
+    create_table(mydb, "stocks",
+                 "(company_name VARCHAR(255), symbol VARCHAR(255), stock_id INT, shares_sold INT, num_of_shares INT, current_price INT, highest_price INT, lowest_price INT)")
+    create_table(mydb, "transactions",
+                 "(username VARCHAR(255), client_id VARCHAR(255), side CHAR, stock_symbol VARCHAR(255), share_price INT, amount INT, time_stamp TIMESTAMP)")
+    create_table(mydb, "users",
+                 "(username VARCHAR(255), password VARCHAR(255), client_id INT, ip VARCHAR(255), port INT, last_seen DATETIME, balance INT)")
+    return mydb
 
 if __name__ == '__main__':
-    db = initialize_database()
-    run_server(db)
+    print("Server is running")
+    mydb = initialize_database()
+    print("Database is ready")
+    run_server(mydb)

@@ -2,16 +2,16 @@ from db_tools import *
 from server_constants import *
 
 # Function that handles a new connection
-def handle_user_connection(conn):
+def handle_user_connection(mydb, conn):
     username = conn.recv(6).decode() # Get the username of the client
     password = conn.recv(6).decode() # Get the password of the client
     while True:
-        if (not is_user_exists(DB_CONN, username, password) and is_username_exists(DB_CONN, username)): 
+        if (not is_user_exists(mydb, username, password) and is_username_exists(mydb, username)): 
             # If the user not exists but there already is a user with such a username
             conn.send("2".encode())
             username = conn.recv(6).decode()
             password = conn.recv(6).decode()
-        elif (is_user_exists(DB_CONN, username, password)): # If the user exists
+        elif (is_user_exists(mydb, username, password)): # If the user exists
             conn.send("1".encode())
             break
         else:
@@ -23,18 +23,18 @@ def handle_user_connection(conn):
 # If user exists - update his ip, port and last_seen
 # If not exists - get balance from him and insert his details
 # Eventually, returns the balance of the client
-def handle_user_balance(conn, username, password):
-    if is_user_exists(DB_CONN, username, password):
+def handle_user_balance(mydb, conn, username, password):
+    if is_user_exists(mydb, username, password):
         conn.send("1".encode()) # Sends confirmation to the client
-        balance = get_user_balance(DB_CONN, username, password) # Gets clients balance
-        update_ip_and_port(DB_CONN, conn, username, password) # Updates ip and port
-        update_last_seen(DB_CONN, username, password) # Updates last_seen
+        balance = get_user_balance(mydb, username, password) # Gets clients balance
+        update_ip_and_port(mydb, conn, username, password) # Updates ip and port
+        update_last_seen(mydb, username, password) # Updates last_seen
         conn.send(str(balance).encode()) # Sends the cliet his balance
     else:
         conn.send("0".encode()) # Sends confirmation to the client
         balance = int(conn.recv(1024).decode()) # Gets from the client his balance
         insert_row(    # Inserts the details of the new client to the database
-            DB_CONN, 
+            mydb, 
             "users", 
             "(username, password, ip, port, last_seen, balance)", 
             "(%s, %s, %s, %s, %s, %s)",
@@ -43,19 +43,19 @@ def handle_user_balance(conn, username, password):
     return balance # Returns the balance of the client
 
 # Funtion that update all the data about the client and the share after transaction
-def update_all_data(conn, username, password, balance, side, amount, stock_symbol, share_price):
-    update_last_seen(DB_CONN, username, password) # Updates last_seen time of the client
-    update_balance(DB_CONN, username, password, balance) # Updates client's balance
+def update_all_data(mydb, conn, username, password, balance, side, amount, stock_symbol, share_price):
+    update_last_seen(mydb, username, password) # Updates last_seen time of the client
+    update_balance(mydb, username, password, balance) # Updates client's balance
     if side.upper() == "S":
-        update_num_of_shares(DB_CONN, stock_symbol, amount) # If shares are sold - add those shares to the num of free shares
+        update_num_of_shares(mydb, stock_symbol, amount) # If shares are sold - add those shares to the num of free shares
     else:
-        update_num_of_shares(DB_CONN, stock_symbol, -amount) # If shares are bought - subtract this amount from the num of free shares
-        update_shares_sold(DB_CONN, stock_symbol, amount) # Add the new amount of sold shares to database
-    update_current_price(DB_CONN, stock_symbol, share_price) # Update the current price of a share after transaction
-    if share_price > get_highest_share_price(DB_CONN, stock_symbol): # Update the highest_share_price if needed
-        update_highest_price(DB_CONN, stock_symbol, share_price)
-    if share_price < get_lowest_share_price(DB_CONN, stock_symbol):  # Update the lowest_share_price if needed
-        update_lowest_price(DB_CONN, stock_symbol, share_price)
+        update_num_of_shares(mydb, stock_symbol, -amount) # If shares are bought - subtract this amount from the num of free shares
+        update_shares_sold(mydb, stock_symbol, amount) # Add the new amount of sold shares to database
+    update_current_price(mydb, stock_symbol, share_price) # Update the current price of a share after transaction
+    if share_price > get_highest_share_price(mydb, stock_symbol): # Update the highest_share_price if needed
+        update_highest_price(mydb, stock_symbol, share_price)
+    if share_price < get_lowest_share_price(mydb, stock_symbol):  # Update the lowest_share_price if needed
+        update_lowest_price(mydb, stock_symbol, share_price)
     conn.send(str(share_price).encode()) # Send the updated share price to the client
 
 

@@ -54,9 +54,9 @@ def create_table(mydb, tableName, params):
     tables = show_tables(mydb)
     mycursor = mydb.cursor()
     query = "CREATE TABLE " + tableName + " " + params
-    print(query)
     if tableName not in  tables:
         mycursor.execute(query)
+
 
 # Function to delete a table in given database
 def delete_table(mydb, tableName):
@@ -102,6 +102,15 @@ def get_all_rows(mydb, tableName):
         rows.append(i)
     return rows
     
+def get_all_column_values(mydb, tableName, columnName):
+    mycursor = mydb.cursor()
+    sql = "SELECT " + columnName + " FROM " + tableName
+    mycursor.execute(sql)
+    rows = []
+    for i in mycursor:
+        rows.append(i[0])
+    return rows
+
 # Function that gets all the rows from a table with condition (name of a column and its value)
 def get_rows_from_table_with_value(mydb, tableName, columnName, columnValue):
     mycursor = mydb.cursor()
