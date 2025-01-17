@@ -127,11 +127,11 @@ def initialize_database():
     mydb = init_with_db("stocktradingdb")
     # Create the tables in the database
     create_table(mydb, "stocks",
-                 "(company_name VARCHAR(255), symbol VARCHAR(255), stock_id INT, shares_sold INT, num_of_shares INT, current_price INT, highest_price INT, lowest_price INT)")
+                 "(company_name VARCHAR(255), symbol VARCHAR(255), stock_id INT NOT NULL PRIMARY KEY auto_increment, shares_sold INT, num_of_shares INT, current_price INT, highest_price INT, lowest_price INT)")
     create_table(mydb, "transactions",
                  "(username VARCHAR(255), client_id VARCHAR(255), side CHAR, stock_symbol VARCHAR(255), share_price INT, amount INT, time_stamp TIMESTAMP)")
     create_table(mydb, "users",
-                 "(username VARCHAR(255), password VARCHAR(255), client_id INT, ip VARCHAR(255), port INT, last_seen DATETIME, balance INT)")
+                 "(username VARCHAR(255), password VARCHAR(255), client_id INT NOT NULL PRIMARY KEY auto_increment, ip VARCHAR(255), port INT, last_seen DATETIME, balance INT)")
     return mydb
 
 if __name__ == '__main__':
