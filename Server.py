@@ -5,12 +5,15 @@ from server_constants import *
 # my helper libraries
 from server_lib import *
 from db_tools import *
+from server_UI import *
 
 
 # When a user connects, its thread referred to deal_maker function
 def deal_maker(mydb, conn):
     print("in deal_maker")
     username, password = handle_user_connection(mydb, conn) # Get username and password
+    print("username is: ", username)
+    print("password is: ", password)
     # print ("username is: ", username)
     # print("password is: ", password)
     balance = handle_user_balance(mydb, conn, username, password) # Check if the user exists
@@ -138,4 +141,5 @@ if __name__ == '__main__':
     print("Server is running")
     mydb = initialize_database()
     print("Database is ready")
+    # show_transactions(mydb)
     run_server(mydb)

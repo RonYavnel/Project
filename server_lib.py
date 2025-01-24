@@ -3,14 +3,14 @@ from server_constants import *
 
 # Function that handles a new connection
 def handle_user_connection(mydb, conn):
-    username = conn.recv(6).decode() # Get the username of the client
-    password = conn.recv(6).decode() # Get the password of the client
+    username = conn.recv(1024).decode() # Get the username of the client
+    password = conn.recv(1024).decode() # Get the password of the client
     while True:
         if (not is_user_exists(mydb, username, password) and is_username_exists(mydb, username)): 
             # If the user not exists but there already is a user with such a username
             conn.send("2".encode())
-            username = conn.recv(6).decode()
-            password = conn.recv(6).decode()
+            username = conn.recv(1024).decode()
+            password = conn.recv(1024).decode()
         elif (is_user_exists(mydb, username, password)): # If the user exists
             conn.send("1".encode())
             break

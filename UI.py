@@ -1,6 +1,10 @@
 from tkinter import *
 from PIL import ImageTk, Image
 
+def show_msg():
+    print("Hello World")
+    
+    
 def present_login_screen():
     root = Tk()
     root.title("Login")
@@ -27,7 +31,7 @@ def present_login_screen():
     password_entry = Entry(root, width=100, show="*")
     password_entry.pack()
     
-    login_button = Button(root, text="Login")
+    login_button = Button(root, text="Login", command=show_msg)
     login_button.pack()
     
     root.mainloop()

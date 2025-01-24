@@ -97,7 +97,6 @@ def get_all_rows(mydb, tableName):
     sql = "SELECT * FROM " + tableName
     mycursor.execute(sql)
     rows = []
-    print(mycursor)
     for i in mycursor:
         rows.append(i)
     return rows

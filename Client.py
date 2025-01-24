@@ -1,6 +1,7 @@
 # Import the socket module for communication
 import socket 
 from getpass import getpass
+import bcrypt
 DEBUG = False
 
 # Define a function for general input (for debugging purposes - automatically fills in the default value)
@@ -17,7 +18,16 @@ def general_password_input(msg, default_val):
         return default_val
     return getpass(msg)
 
-# TODO - 2 : save hash of passw and compare to hash of entered
+
+# Function to hash a password
+def hash_password(password):
+    # Generate a salt and hash the password
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(str(password).encode(), salt)
+    return hashed_password
+
+
+
 # TODO --- mutex lock for "space"
 # TODO - list of stocks
 
@@ -33,7 +43,7 @@ def get_and_send_username_and_password(client_socket):
     client_socket.send(username.encode())
 
     password = general_password_input("Enter your password: ", "10010")
-    client_socket.send(password.encode())
+    client_socket.send(hash_password(password))
     
     # Handle new user registration
     while True:
@@ -45,7 +55,7 @@ def get_and_send_username_and_password(client_socket):
             username = general_input("Enter your username: ", "ron  ")
             client_socket.send(username.encode())
             password = general_password_input("Enter your password: ", "10010")
-            client_socket.send(password.encode())
+            client_socket.send(hash_password(password))
         elif (result == '1'):
             # 1 if the user is registered
             print(f"Welcome back {username}!")
