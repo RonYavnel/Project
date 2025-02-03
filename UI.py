@@ -1,9 +1,5 @@
 from tkinter import *
 from PIL import ImageTk, Image
-
-def show_msg():
-    print("Hello World")
-    
     
 def present_login_screen():
     root = Tk()

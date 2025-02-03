@@ -1,7 +1,6 @@
 # Import the socket module for communication
 import socket 
 from getpass import getpass
-import bcrypt
 DEBUG = False
 
 # Define a function for general input (for debugging purposes - automatically fills in the default value)
@@ -19,15 +18,6 @@ def general_password_input(msg, default_val):
     return getpass(msg)
 
 
-# Function to hash a password
-def hash_password(password):
-    # Generate a salt and hash the password
-    salt = bcrypt.gensalt()
-    hashed_password = bcrypt.hashpw(str(password).encode(), salt)
-    return hashed_password
-
-
-
 # TODO --- mutex lock for "space"
 # TODO - list of stocks
 
@@ -43,7 +33,7 @@ def get_and_send_username_and_password(client_socket):
     client_socket.send(username.encode())
 
     password = general_password_input("Enter your password: ", "10010")
-    client_socket.send(hash_password(password))
+    client_socket.send(password.encode())
     
     # Handle new user registration
     while True:
@@ -55,7 +45,7 @@ def get_and_send_username_and_password(client_socket):
             username = general_input("Enter your username: ", "ron  ")
             client_socket.send(username.encode())
             password = general_password_input("Enter your password: ", "10010")
-            client_socket.send(hash_password(password))
+            client_socket.send((password).encode())
         elif (result == '1'):
             # 1 if the user is registered
             print(f"Welcome back {username}!")
@@ -105,7 +95,7 @@ def run_client():
     list_of_stocks = client_socket.recv(1024).decode()
     
     stock_symbol = general_input(f"Choose a stock from the following list: {list_of_stocks}: ", "AAPL")
-    while stock_symbol not in list_of_stocks:
+    while stock_symbol not in list_of_stocks or not stock_symbol:
         stock_symbol = general_input(f"Invalid stock symbol. Choose a stock from the following list: {list_of_stocks}", "AAPL")
     
     client_socket.send(stock_symbol.encode())
@@ -117,11 +107,19 @@ def run_client():
         
     # Listen to client's orders until he sends an empty message
     while True:
-        order = general_input("enter your order (side$amount): ", "b$10")
-        client_socket.send(order.encode())
-        if order == '':
-            client_socket.close()
-            break
+        while True:
+            order = general_input("Enter your order (side$amount): ", "b$10")
+
+            # Send the order to the server (even if it is empty)
+            client_socket.send(order.encode() if order else b" ")
+
+            # Receive feedback from the server about the order
+            server_response = client_socket.recv(1024).decode()
+            print(server_response)
+
+            # If the server confirms the order is valid, break the loop
+            if server_response == "Order recieved":
+                break
         
         # Recieve the appropriate response from the server about the order
         response = client_socket.recv(1024).decode()
