@@ -8,7 +8,7 @@ def present_login_screen():
     root.geometry(f"{root.winfo_screenwidth()}x{root.winfo_screenheight()}")
     
     # Load the image 
-    image = ImageTk.PhotoImage(Image.open("nExchange_logo.jpg"))
+    image = ImageTk.PhotoImage(Image.open("nExchange_logo.png"))
 
     # Create a label to display the image
     image_label = Label(root, image=image, width=450, height=450)
@@ -27,7 +27,7 @@ def present_login_screen():
     password_entry = Entry(root, width=100, show="*")
     password_entry.pack()
     
-    login_button = Button(root, text="Login", command=show_msg)
+    login_button = Button(root, text="Login")
     login_button.pack()
     
     root.mainloop()

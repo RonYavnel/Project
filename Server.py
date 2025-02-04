@@ -7,6 +7,7 @@ from server_lib import *
 from db_tools import *
 from server_UI import *
 
+list_of_connections = {} # ip: username
 
 # When a user connects, its thread referred to deal_maker function
 def deal_maker(mydb, conn):
@@ -15,6 +16,8 @@ def deal_maker(mydb, conn):
         username, hashed_password = handle_user_connection(mydb, conn) # Get username and hashed password
         print("username is: ", username)
         print("hashed_password is: ", hashed_password)
+        list_of_connections[conn.getpeername()] = username # Add the connection to the list of connections
+        print(list_of_connections)
         balance = handle_user_balance(mydb, conn, username, hashed_password) # Check if the user exists
         # If not - creates it and asks for balance
         # If yes - takes the recent balance
@@ -117,6 +120,8 @@ def deal_maker(mydb, conn):
         # Error handling: connection forcibly aborted by the client (process killed)
         print(f"Connection with {conn} was forcibly aborted")
     finally:
+        list_of_connections.pop(conn.getpeername()[0]) # Remove the connection from the list of connections
+        print(list_of_connections)
         conn.close()
         print(f"Connection with {conn} closed")
 
@@ -158,5 +163,5 @@ if __name__ == '__main__':
     print("Server is running")
     mydb = initialize_database()
     print("Database is ready")
-    # show_transactions(mydb)
+    show_combined_ui(mydb, list_of_connections)
     run_server(mydb)
