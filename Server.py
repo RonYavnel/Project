@@ -34,7 +34,7 @@ def deal_maker(mydb, conn):
         # If yes - takes the recent balance
         list_of_stocks = get_all_column_values(mydb, "stocks", "symbol") # Get the stocks from the database
         conn.send(str(list_of_stocks).encode()) # Send the client the list of stocks
-        stock_symbol = conn.recv(1024).decode() # Recieve the stock symbol from the client
+        stock_symbol = conn.recv(1024).decode().upper() # Recieve the stock symbol from the client
         share_price = get_current_share_price(mydb, stock_symbol) # Get the current share price
         conn.send(str(share_price).encode()) # Send the client the updated share price
 

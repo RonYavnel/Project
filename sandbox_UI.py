@@ -5,8 +5,7 @@ from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
-
+warnings.filterwarnings("ignore", category=UserWarning)
 
 # Define colors for better aesthetics
 BG_COLOR = "#f0f8ff"  # Light blue background
@@ -50,7 +49,7 @@ def refresh_stock_graphs(stock_prices_dict):
             ax.clear()
             ax.plot(prices, marker='o', linestyle='-', color='blue')  # Draw the graph
             ax.set_title(f"Price Changes for {stock_symbol}")
-            ax.set_xlabel("Time")
+            ax.set_xlabel("Transaction Recency")
             ax.set_ylabel("Price")
             ax.grid(True)
 
@@ -259,24 +258,6 @@ def refresh_connected_clients(connected_clients_list):
         connected_clients_tree.insert("", "end", values=(ip, port, username))
 
 
-def refresh_stock_graphs(stock_prices_dict):
-    """
-    Updates stock graphs for each stock symbol.
-    :param stock_prices_dict: Dictionary in the format {stock_symbol: [list of stock prices]}.
-    """
-    global stock_graph_windows
-    for stock_symbol, prices in stock_prices_dict.items():
-        if stock_symbol in stock_graph_windows:
-            graph_window, canvas, ax = stock_graph_windows[stock_symbol]
-            ax.clear()  # Clear the current graph
-            ax.plot(prices, marker='o', linestyle='-', color='blue')  # Draw new graph
-            ax.set_title(f"Price Changes for {stock_symbol}")
-            ax.set_xlabel("Time")
-            ax.set_ylabel("Price")
-            ax.grid(True)
-            canvas.draw()  # Refresh the graph
-
-
 def refresh_transactions_table(mydb):
     """
     Refreshes the transactions table.
@@ -304,6 +285,8 @@ def show_combined_ui(mydb, dict_of_connected_people, stocks, stock_prices_histor
     root = Tk("nExchange Dashboard") 
     root.geometry(f"{root.winfo_screenwidth()}x{root.winfo_screenheight()}")
     root.configure(bg="#f0f8ff")
+    root.resizable(False, False)
+    root.state("zoomed")
     
     configure_styles()
 

@@ -94,9 +94,9 @@ def run_client():
               
     list_of_stocks = client_socket.recv(1024).decode()
     
-    stock_symbol = general_input(f"Choose a stock from the following list: {list_of_stocks}: ", "AAPL")
+    stock_symbol = general_input(f"Choose a stock from the following list: {list_of_stocks}: ", "AAPL").upper()
     while stock_symbol not in list_of_stocks or not stock_symbol:
-        stock_symbol = general_input(f"Invalid stock symbol. Choose a stock from the following list: {list_of_stocks}", "AAPL")
+        stock_symbol = general_input(f"Invalid stock symbol. Choose a stock from the following list: {list_of_stocks}: ", "AAPL")
     
     client_socket.send(stock_symbol.encode())
     # Recieve the most updated share price from the server
