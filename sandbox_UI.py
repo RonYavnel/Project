@@ -5,7 +5,8 @@ from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import warnings
-warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
+
 
 # Define colors for better aesthetics
 BG_COLOR = "#f0f8ff"  # Light blue background
@@ -339,4 +340,4 @@ stock_prices_history = {
     "TSLA": [720, 725, 730, 735, 740, 745, 750, 755, 760, 765]
 }
 
-# show_combined_ui(mydb, dict_of_connected_people, stocks, stock_prices_history)
+show_combined_ui(mydb, dict_of_connected_people, stocks, stock_prices_history)

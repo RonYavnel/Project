@@ -7,7 +7,12 @@ from server_lib import *
 from db_tools import *
 from server_UI import *
 
-list_of_connections = {} # ip: username
+list_of_connections = {} # (ip, port): username
+stock_prices_history = {} # stock_symbol: [list of stock prices]
+
+def update_stock_prices_history():
+    for stock in get_all_column_values(mydb, "stocks", "symbol"):
+        stock_prices_history[stock] = [get_current_share_price(mydb, stock)] # Initialize the stock prices history with the current share price
 
 # When a user connects, its thread referred to deal_maker function
 def deal_maker(mydb, conn):
@@ -18,6 +23,12 @@ def deal_maker(mydb, conn):
         print("hashed_password is: ", hashed_password)
         list_of_connections[conn.getpeername()] = username # Add the connection to the list of connections
         print(list_of_connections)
+        
+        
+        # Refresh the connected clients table
+        connected_clients_list = [(ip, port, user) for (ip, port), user in list_of_connections.items()] # list of tuples (ip, port, username)
+        refresh_connected_clients(connected_clients_list)
+        
         balance = handle_user_balance(mydb, conn, username, hashed_password) # Check if the user exists
         # If not - creates it and asks for balance
         # If yes - takes the recent balance
@@ -27,6 +38,10 @@ def deal_maker(mydb, conn):
         share_price = get_current_share_price(mydb, stock_symbol) # Get the current share price
         conn.send(str(share_price).encode()) # Send the client the updated share price
 
+        # Initialize stock history if not already present
+        if stock_symbol not in stock_prices_history:
+            stock_prices_history[stock_symbol] = []
+            
         while True:
             print("Waiting for order")
             order = conn.recv(1024).decode() # Recieve the order from the client
@@ -112,6 +127,19 @@ def deal_maker(mydb, conn):
                     else:
                         # Error handling: amount of shares bigger than the number of available shares.
                         conn.send("Error: Not enough shares available.".encode())
+                
+                # Update the stock price history
+                stock_prices_history[stock_symbol].append(share_price)
+                
+                # Maintain only the last 10 prices
+                if len(stock_prices_history[stock_symbol]) > 10:
+                    stock_prices_history[stock_symbol].pop(0)
+                    
+                print(stock_prices_history)
+                
+                refresh_transactions_table(mydb)
+                refresh_stock_graphs({stock_symbol: stock_prices_history[stock_symbol]})
+
             except ValueError:
                 conn.send("Error: Invalid data format.".encode())
             update_all_data(mydb, conn, username, hashed_password, balance, side, amount, stock_symbol, share_price)
@@ -120,11 +148,15 @@ def deal_maker(mydb, conn):
         # Error handling: connection forcibly aborted by the client (process killed)
         print(f"Connection with {conn} was forcibly aborted")
     finally:
-        list_of_connections.pop(conn.getpeername()[0]) # Remove the connection from the list of connections
+        list_of_connections.pop(conn.getpeername()) # Remove the connection from the list of connections
+        connected_clients_list = [(ip, port, user) for (ip, port), user in list_of_connections.items()] # refresh the connected clients list after removing the connection
+        refresh_connected_clients(connected_clients_list) # Refresh the connected clients table
         print(list_of_connections)
         conn.close()
         print(f"Connection with {conn} closed")
 
+
+# Server and UI initialization
 def init_server():
     # Initiate a socket
     server_socket = socket.socket()
@@ -135,15 +167,14 @@ def init_server():
     return server_socket
 
 def run_server(mydb):
-
     server_socket = init_server()
     while True:
         # For each connection: accept, and send it to thread
         conn = server_socket.accept()[0]
         client_thread = threading.Thread(target=deal_maker, args=(mydb, conn))
         client_thread.start()
-        
-        
+
+
 def initialize_database():
     # Initiate the connection with the sql server
     my_sql_server = init()
@@ -163,5 +194,18 @@ if __name__ == '__main__':
     print("Server is running")
     mydb = initialize_database()
     print("Database is ready")
-    show_combined_ui(mydb, list_of_connections)
+
+    update_stock_prices_history()
+    print("Stock prices history is updated")
+
+    # Retrieve the UI components (Treeviews) from the UI thread
+    def start_ui():
+        global transactions_tree, connected_clients_tree
+        transactions_tree, connected_clients_tree = show_combined_ui(mydb, list_of_connections, get_all_column_values(mydb, "stocks", "symbol"), stock_prices_history)
+
+    # Start the UI in a separate thread
+    ui_thread = threading.Thread(target=start_ui, daemon=True)
+    ui_thread.start()
+
+    # Run the server in the main thread
     run_server(mydb)
