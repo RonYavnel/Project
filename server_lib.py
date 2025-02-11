@@ -1,22 +1,38 @@
 from db_tools import *
 from server_constants import *
+from encryption_lib import *
 
 # Function that handles a new connection
 def handle_user_connection(mydb, conn):
-    username = conn.recv(1024).decode() # Get the username of the client
-    hashed_password = hash(conn.recv(1024).decode()) # Get the password of the client and hash it
+    private_key = load_private_key()  # Load the server's private key
+    
+    # Receive and decrypt the username
+    encrypted_username = conn.recv(1024)
+    username = decrypt_data(encrypted_username, private_key)
+    
+    # Receive and decrypt the password, then hash it
+    encrypted_password = conn.recv(1024)
+    hashed_password = hash(decrypt_data(encrypted_password, private_key))
+
     while True:
         if (not is_user_exists(mydb, username, hashed_password) and is_username_exists(mydb, username)): 
-            # If the user not exists but there already is a user with such a username
+            # If the user does not exist but there is a user with the same username
             conn.send("2".encode())
-            username = conn.recv(1024).decode()
-            hashed_password = conn.recv(1024).decode()
-        elif (is_user_exists(mydb, username, hashed_password)): # If the user exists
+            
+            # Receive and decrypt the new username and password
+            encrypted_username = conn.recv(1024)
+            username = decrypt_data(encrypted_username, private_key)
+            
+            encrypted_password = conn.recv(1024)
+            hashed_password = hash(decrypt_data(encrypted_password, private_key))
+        
+        elif (is_user_exists(mydb, username, hashed_password)):  # If the user exists
             conn.send("1".encode())
             break
         else:
             conn.send("0".encode())
             break
+    
     return username, hashed_password
 
 

@@ -1,6 +1,8 @@
 # Import the socket module for communication
 import socket 
 from getpass import getpass
+from encryption_lib import *
+
 DEBUG = False
 
 # Define a function for general input (for debugging purposes - automatically fills in the default value)
@@ -18,7 +20,6 @@ def general_password_input(msg, default_val):
     return getpass(msg)
 
 
-# TODO --- mutex lock for "space"
 # TODO - list of stocks
 
 
@@ -29,23 +30,30 @@ PORT = 5000
 def get_and_send_username_and_password(client_socket):
     # Fill in personal details - username and password
     # Send them to the server
+    public_key = load_public_key()  # Load the server's public key
+
     username = general_input("Enter your username: ", "ron  ")
-    client_socket.send(username.encode())
+    encrypted_username = encrypt_data(username, public_key)  # Encrypt the username
+    client_socket.send(encrypted_username)
 
     password = general_password_input("Enter your password: ", "10010")
-    client_socket.send(password.encode())
+    encrypted_password = encrypt_data(password, public_key)  # Encrypt the password
+    client_socket.send(encrypted_password)
     
     # Handle new user registration
     while True:
         # Recieve the answer from the server:
         result = client_socket.recv(6).decode() 
-        if ( result == '2'):
+        if (result == '2'):
             # 2 if the username already exists
             print("Username already exists. Please enter a new one.")
             username = general_input("Enter your username: ", "ron  ")
-            client_socket.send(username.encode())
+            encrypted_username = encrypt_data(username, public_key)
+            client_socket.send(encrypted_username)
+
             password = general_password_input("Enter your password: ", "10010")
-            client_socket.send((password).encode())
+            encrypted_password = encrypt_data(password, public_key)
+            client_socket.send(encrypted_password)
         elif (result == '1'):
             # 1 if the user is registered
             print(f"Welcome back {username}!")
@@ -57,7 +65,6 @@ def get_and_send_username_and_password(client_socket):
         
 
 def initialize_client_balance(client_socket):
-    
     # Check if client with this characteristics - the server sends the answer:
     # 1 if registered and 0 if not
     is_registered = client_socket.recv(1024).decode()
@@ -95,9 +102,11 @@ def run_client():
     list_of_stocks = client_socket.recv(1024).decode()
     
     stock_symbol = general_input(f"Choose a stock from the following list: {list_of_stocks}: ", "AAPL").upper()
+
     while stock_symbol not in list_of_stocks or not stock_symbol:
-        stock_symbol = general_input(f"Invalid stock symbol. Choose a stock from the following list: {list_of_stocks}: ", "AAPL")
+        stock_symbol = general_input(f"Invalid stock symbol. Choose a stock from the following list: {list_of_stocks}: ", "AAPL").upper()
     
+    print("stock_symbol: " + stock_symbol)
     client_socket.send(stock_symbol.encode())
     # Recieve the most updated share price from the server
     share_price = int(client_socket.recv(1024).decode())

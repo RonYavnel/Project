@@ -14,6 +14,10 @@ def update_stock_prices_history():
     for stock in get_all_column_values(mydb, "stocks", "symbol"):
         stock_prices_history[stock] = [get_current_share_price(mydb, stock)] # Initialize the stock prices history with the current share price
 
+
+# Mutex initialization
+mutex = threading.Lock()
+
 # When a user connects, its thread referred to deal_maker function
 def deal_maker(mydb, conn):
     try:
@@ -24,10 +28,10 @@ def deal_maker(mydb, conn):
         list_of_connections[conn.getpeername()] = username # Add the connection to the list of connections
         print(list_of_connections)
         
-        
-        # Refresh the connected clients table
-        connected_clients_list = [(ip, port, user) for (ip, port), user in list_of_connections.items()] # list of tuples (ip, port, username)
-        refresh_connected_clients(connected_clients_list)
+        with mutex:
+            # Refresh the connected clients table
+            connected_clients_list = [(ip, port, user) for (ip, port), user in list_of_connections.items()] # list of tuples (ip, port, username)
+            refresh_connected_clients(connected_clients_list)
         
         balance = handle_user_balance(mydb, conn, username, hashed_password) # Check if the user exists
         # If not - creates it and asks for balance
@@ -38,9 +42,10 @@ def deal_maker(mydb, conn):
         share_price = get_current_share_price(mydb, stock_symbol) # Get the current share price
         conn.send(str(share_price).encode()) # Send the client the updated share price
 
-        # Initialize stock history if not already present
-        if stock_symbol not in stock_prices_history:
-            stock_prices_history[stock_symbol] = []
+        with mutex:
+            # Initialize stock history if not already present
+            if stock_symbol not in stock_prices_history:
+                stock_prices_history[stock_symbol] = []
             
         while True:
             print("Waiting for order")
@@ -53,95 +58,96 @@ def deal_maker(mydb, conn):
 
             print("Order is:", order)
 
-            try:
-                delimiter = "$"
-                param = order.split(delimiter)
+            with mutex:
+                try:
+                    delimiter = "$"
+                    param = order.split(delimiter)
 
-                # Validate format: delimiter and numeric amount check
-                # If the order is not in the format 'side$amount' - send error and ask for order again
-                if len(param) != 2:
-                    conn.send("Error: Incorrect format. Use 'side$amount format.".encode())
-                    continue
-                
-                # If the amount is not a numeric value - send error and ask for order again
-                if not param[1].isdigit():
-                    conn.send("Error: Amount must be a numeric value.".encode())
-                    continue
+                    # Validate format: delimiter and numeric amount check
+                    # If the order is not in the format 'side$amount' - send error and ask for order again
+                    if len(param) != 2:
+                        conn.send("Error: Incorrect format. Use 'side$amount format.".encode())
+                        continue
+                    
+                    # If the amount is not a numeric value - send error and ask for order again
+                    if not param[1].isdigit():
+                        conn.send("Error: Amount must be a numeric value.".encode())
+                        continue
 
-                side, amount = param[0].upper(), int(param[1])
+                    side, amount = param[0].upper(), int(param[1])
 
-                # Validate the "side" parameter
-                if side.upper() not in ["B", "S"]:
-                    conn.send("Error: Invalid side parameter. Use 'B' for buy or 'S' for sell.".encode())
-                    continue
+                    # Validate the "side" parameter
+                    if side.upper() not in ["B", "S"]:
+                        conn.send("Error: Invalid side parameter. Use 'B' for buy or 'S' for sell.".encode())
+                        continue
 
-                # If all validations pass
-                conn.send("Order recieved".encode())
+                    # If all validations pass
+                    conn.send("Order recieved".encode())
 
-                # Calculate the whole deal cost
-                deal = share_price * amount
-                
-                # Handle the order
-                
-                # If the side is "sell":
-                if side.upper() == "S":
-                    # Add the deal cost to the balance of the client
-                    balance += deal
-                    # Document the transaction in the Transactions table
-                    insert_row(
-                        mydb,
-                        "transactions",
-                        "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
-                        "(%s, %s, %s, %s, %s, %s, %s)",
-                        (username, get_client_id(mydb, username, hashed_password), "S", stock_symbol, share_price, amount, datetime.now())
-                    )
-                    # Adjust the share price according to the amount of shares that have been sold.
-                    adjustment = int((amount * share_price) * 0.01)
-                    share_price = max(1, share_price - adjustment)
-                    # Send confirmation to the client with his updated balance
-                    conn.send(f"Sale completed. Your updated balance: {balance}".encode())
-                
-                # If the side is "buy":
-                else:
-                    # Check the deal cost is less than user's balance,
-                    # if not - send error and ask for order again
-                    if balance >= deal:
-                        # Subtract the deal cost from the user's balance
-                        balance -= deal
+                    # Calculate the whole deal cost
+                    deal = share_price * amount
+                    
+                    # Handle the order
+                    
+                    # If the side is "sell":
+                    if side.upper() == "S":
+                        # Add the deal cost to the balance of the client
+                        balance += deal
                         # Document the transaction in the Transactions table
                         insert_row(
                             mydb,
                             "transactions",
                             "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
                             "(%s, %s, %s, %s, %s, %s, %s)",
-                            (username, get_client_id(mydb, username, hashed_password), "B", stock_symbol, share_price, amount, datetime.now())
-                        )        
-                        # Adjust the share price according to the amount of shares that have been bought.            
+                            (username, get_client_id(mydb, username, hashed_password), "S", stock_symbol, share_price, amount, datetime.now())
+                        )
+                        # Adjust the share price according to the amount of shares that have been sold.
                         adjustment = int((amount * share_price) * 0.01)
-                        share_price += adjustment
+                        share_price = max(1, share_price - adjustment)
                         # Send confirmation to the client with his updated balance
-                        conn.send(f"Purchase successful. New balance: {balance}".encode())
-                    elif balance < deal:
-                        # Error handling: insufficient balance for order
-                        conn.send(f"Error: Insufficient balance for this purchase. Your balance is: {balance}".encode())
-                    else:
-                        # Error handling: amount of shares bigger than the number of available shares.
-                        conn.send("Error: Not enough shares available.".encode())
-                
-                # Update the stock price history
-                stock_prices_history[stock_symbol].append(share_price)
-                
-                # Maintain only the last 10 prices
-                if len(stock_prices_history[stock_symbol]) > 10:
-                    stock_prices_history[stock_symbol].pop(0)
+                        conn.send(f"Sale completed. Your updated balance: {balance}".encode())
                     
-                print(stock_prices_history)
-                
-                refresh_transactions_table(mydb)
-                refresh_stock_graphs({stock_symbol: stock_prices_history[stock_symbol]})
+                    # If the side is "buy":
+                    else:
+                        # Check the deal cost is less than user's balance,
+                        # if not - send error and ask for order again
+                        if balance >= deal:
+                            # Subtract the deal cost from the user's balance
+                            balance -= deal
+                            # Document the transaction in the Transactions table
+                            insert_row(
+                                mydb,
+                                "transactions",
+                                "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
+                                "(%s, %s, %s, %s, %s, %s, %s)",
+                                (username, get_client_id(mydb, username, hashed_password), "B", stock_symbol, share_price, amount, datetime.now())
+                            )        
+                            # Adjust the share price according to the amount of shares that have been bought.            
+                            adjustment = int((amount * share_price) * 0.01)
+                            share_price += adjustment
+                            # Send confirmation to the client with his updated balance
+                            conn.send(f"Purchase successful. New balance: {balance}".encode())
+                        elif balance < deal:
+                            # Error handling: insufficient balance for order
+                            conn.send(f"Error: Insufficient balance for this purchase. Your balance is: {balance}".encode())
+                        else:
+                            # Error handling: amount of shares bigger than the number of available shares.
+                            conn.send("Error: Not enough shares available.".encode())
+                    
+                    # Update the stock price history
+                    stock_prices_history[stock_symbol].append(share_price)
+                    
+                    # Maintain only the last 10 prices
+                    if len(stock_prices_history[stock_symbol]) > 10:
+                        stock_prices_history[stock_symbol].pop(0)
+                        
+                    print(stock_prices_history)
+                    
+                    refresh_transactions_table(mydb)
+                    refresh_stock_graphs({stock_symbol: stock_prices_history[stock_symbol]})
 
-            except ValueError:
-                conn.send("Error: Invalid data format.".encode())
+                except ValueError:
+                    conn.send("Error: Invalid data format.".encode())
             update_all_data(mydb, conn, username, hashed_password, balance, side, amount, stock_symbol, share_price)
 
     except ConnectionResetError as e:
