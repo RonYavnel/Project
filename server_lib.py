@@ -1,65 +1,69 @@
 from db_tools import *
 from server_constants import *
 from encryption_lib import *
+import time
 
 # Function that handles a new connection
-def handle_user_connection(mydb, conn):
-    private_key = load_private_key()  # Load the server's private key
+# Function that handles a new connection
+def handle_user_connection(mydb, conn, server_private_key, client_public_key):
     
     # Receive and decrypt the username
-    encrypted_username = conn.recv(1024)
-    username = decrypt_data(encrypted_username, private_key)
+    username = decrypt_data(conn.recv(4096), server_private_key)
     
     # Receive and decrypt the password, then hash it
-    encrypted_password = conn.recv(1024)
-    hashed_password = hash(decrypt_data(encrypted_password, private_key))
+    hashed_password = hash(decrypt_data(conn.recv(4096), server_private_key))
 
     while True:
         if (not is_user_exists(mydb, username, hashed_password) and is_username_exists(mydb, username)): 
             # If the user does not exist but there is a user with the same username
-            conn.send("2".encode())
+            conn.send(encrypt_data("2", client_public_key))
             
             # Receive and decrypt the new username and password
-            encrypted_username = conn.recv(1024)
-            username = decrypt_data(encrypted_username, private_key)
-            
-            encrypted_password = conn.recv(1024)
-            hashed_password = hash(decrypt_data(encrypted_password, private_key))
+            username = decrypt_data(conn.recv(4096), server_private_key)
+            hashed_password = hash(decrypt_data(conn.recv(4096), server_private_key))
         
         elif (is_user_exists(mydb, username, hashed_password)):  # If the user exists
-            conn.send("1".encode())
+            conn.send(encrypt_data("1", client_public_key))
             break
         else:
-            conn.send("0".encode())
+            conn.send(encrypt_data("0", client_public_key))
             break
     
     return username, hashed_password
 
 
+
 # If user exists - update his ip, port and last_seen
 # If not exists - get balance from him and insert his details
 # Eventually, returns the balance of the client
-def handle_user_balance(mydb, conn, username, password):
+def handle_user_balance(mydb, conn, username, password, server_private_key, client_public_key):
+    
     if is_user_exists(mydb, username, password):
-        conn.send("1".encode()) # Sends confirmation to the client
-        balance = get_user_balance(mydb, username, password) # Gets clients balance
-        update_ip_and_port(mydb, conn, username, password) # Updates ip and port
-        update_last_seen(mydb, username, password) # Updates last_seen
-        conn.send(str(balance).encode()) # Sends the cliet his balance
+        conn.send(encrypt_data("1", client_public_key))
+        
+        # Sends confirmation to the client
+        balance = get_user_balance(mydb, username, password)  # Gets client's balance
+        print(balance)
+        update_ip_and_port(mydb, conn, username, password)  # Updates IP and port
+        update_last_seen(mydb, username, password)  # Updates last_seen
+        time.sleep(0.1)
+        conn.send(encrypt_data(str(balance), client_public_key))  # Sends the client his balance
+
     else:
-        conn.send("0".encode()) # Sends confirmation to the client
-        balance = int(conn.recv(1024).decode()) # Gets from the client his balance
-        insert_row(    # Inserts the details of the new client to the database
+        conn.send(encrypt_data("0", client_public_key))
+        # Sends confirmation to the client
+        balance = int(decrypt_data(conn.recv(4096), server_private_key))  # Gets balance from the client
+        insert_row(    # Inserts the details of the new client into the database
             mydb, 
             "users", 
             "(username, password, ip, port, last_seen, balance)", 
             "(%s, %s, %s, %s, %s, %s)",
             (username, password, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance)
         )
-    return balance # Returns the balance of the client
+    return balance  # Returns the balance of the client
 
 # Funtion that update all the data about the client and the share after transaction
-def update_all_data(mydb, conn, username, password, balance, side, amount, stock_symbol, share_price):
+def update_all_data(mydb, conn, username, password, balance, side, amount, stock_symbol, share_price, client_public_key):
     update_last_seen(mydb, username, password) # Updates last_seen time of the client
     update_balance(mydb, username, password, balance) # Updates client's balance
     if side.upper() == "S":
@@ -72,7 +76,7 @@ def update_all_data(mydb, conn, username, password, balance, side, amount, stock
         update_highest_price(mydb, stock_symbol, share_price)
     if share_price < get_lowest_share_price(mydb, stock_symbol):  # Update the lowest_share_price if needed
         update_lowest_price(mydb, stock_symbol, share_price)
-    conn.send(str(share_price).encode()) # Send the updated share price to the client
+    conn.send(encrypt_data(str(share_price), client_public_key)) # Send the updated share price to the client
 
 
 # Function that checks if username with given name and password exists

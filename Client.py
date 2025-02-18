@@ -19,9 +19,7 @@ def general_password_input(msg, default_val):
         return default_val
     return getpass(msg)
 
-
 # TODO - list of stocks
-
 
 # Set the host and the port
 HOST = socket.gethostname()
@@ -30,100 +28,87 @@ PORT = 5000
 def get_and_send_username_and_password(client_socket):
     # Fill in personal details - username and password
     # Send them to the server
-    public_key = load_public_key()  # Load the server's public key
+    server_public_key = load_server_public_key()  # Load the server's public key
 
-    username = general_input("Enter your username: ", "ron  ")
-    encrypted_username = encrypt_data(username, public_key)  # Encrypt the username
-    client_socket.send(encrypted_username)
+    username = general_input("Enter your username: ", "ron")
+    client_socket.send(encrypt_data(username, server_public_key))  # Encrypt and send username
 
     password = general_password_input("Enter your password: ", "10010")
-    encrypted_password = encrypt_data(password, public_key)  # Encrypt the password
-    client_socket.send(encrypted_password)
-    
+    client_socket.send(encrypt_data(password, server_public_key))  # Encrypt and send password
+
     # Handle new user registration
     while True:
-        # Recieve the answer from the server:
-        result = client_socket.recv(6).decode() 
-        if (result == '2'):
-            # 2 if the username already exists
+        # Receive the answer from the server
+        result = decrypt_data(client_socket.recv(4096), load_client_private_key())  
+        if result == '2':
             print("Username already exists. Please enter a new one.")
-            username = general_input("Enter your username: ", "ron  ")
-            encrypted_username = encrypt_data(username, public_key)
-            client_socket.send(encrypted_username)
+            username = general_input("Enter your username: ", "ron")
+            client_socket.send(encrypt_data(username, server_public_key))
 
             password = general_password_input("Enter your password: ", "10010")
-            encrypted_password = encrypt_data(password, public_key)
-            client_socket.send(encrypted_password)
-        elif (result == '1'):
-            # 1 if the user is registered
+            client_socket.send(encrypt_data(password, server_public_key))
+        elif result == '1':
             print(f"Welcome back {username}!")
             break
         else:
-            # 0 if the user is not registered
             print("Nice to meet you! You are now registered.")
             break
         
 
 def initialize_client_balance(client_socket):
-    # Check if client with this characteristics - the server sends the answer:
+    # Check if client with these characteristics exists - the server sends the answer:
     # 1 if registered and 0 if not
-    is_registered = client_socket.recv(1024).decode()
-    # If not registered, try and recieve the balance of the new client until it is valid
-    if (is_registered == '0'):
+    client_private_key = load_client_private_key()
+    server_public_key = load_server_public_key()
+
+    is_registered = decrypt_data(client_socket.recv(4096), client_private_key)
+
+    if is_registered == '0':
         while True:
             try:
                 balance = int(general_input("Please enter your balance: ", "10000"))
-                # If valid - break from the loop
                 break
             except ValueError:
-                print("Invalid balance entered. Please enter a digital value.")
-            
-        client_socket.send(str(balance).encode())
-        
-    # If the client exists, present the balance to him and continue
+                print("Invalid balance entered. Please enter a numeric value.")
+
+        client_socket.send(encrypt_data(str(balance), server_public_key))
     else:
-        current_balance = client_socket.recv(1024).decode()
+        current_balance = decrypt_data(client_socket.recv(4096), client_private_key)
         print(f"Your current balance: {current_balance}")    
   
-  
 def run_client():
-    # Create a socket
     client_socket = socket.socket()
-
-    # Connect the socket to the server (the server is local)
     client_socket.connect((HOST, PORT))
 
     get_and_send_username_and_password(client_socket)
-    if DEBUG:
-        print(f"moooooooooo")
-
+    
     initialize_client_balance(client_socket)
-              
-    list_of_stocks = client_socket.recv(1024).decode()
-    
-    stock_symbol = general_input(f"Choose a stock from the following list: {list_of_stocks}: ", "AAPL").upper()
 
-    while stock_symbol not in list_of_stocks or not stock_symbol:
-        stock_symbol = general_input(f"Invalid stock symbol. Choose a stock from the following list: {list_of_stocks}: ", "AAPL").upper()
+    client_private_key = load_client_private_key()
+    server_public_key = load_server_public_key()
+
+    list_of_stocks = decrypt_data(client_socket.recv(4096), client_private_key)
     
-    print("stock_symbol: " + stock_symbol)
-    client_socket.send(stock_symbol.encode())
-    # Recieve the most updated share price from the server
-    share_price = int(client_socket.recv(1024).decode())
-    if not DEBUG:
-        print(f"Current share price: {share_price}")
-        
+    stock_symbol = general_input(f"Choose a stock from {list_of_stocks}: ", "AAPL").upper()
+
+    while stock_symbol not in list_of_stocks:
+        stock_symbol = general_input(f"Invalid stock. Choose from {list_of_stocks}: ", "AAPL").upper()
+    
+    client_socket.send(encrypt_data(stock_symbol, server_public_key))
+    
+    share_price = int(decrypt_data(client_socket.recv(4096), client_private_key))
+    print(f"Current share price: {share_price}")
         
     # Listen to client's orders until he sends an empty message
     while True:
         while True:
             order = general_input("Enter your order (side$amount): ", "b$10")
-
+            
             # Send the order to the server (even if it is empty)
-            client_socket.send(order.encode() if order else b" ")
+            client_socket.send(encrypt_data(order, server_public_key) if order else encrypt_data(" ", server_public_key))
 
             # Receive feedback from the server about the order
-            server_response = client_socket.recv(1024).decode()
+            server_response = decrypt_data(client_socket.recv(4096), client_private_key)
             print(server_response)
 
             # If the server confirms the order is valid, break the loop
@@ -131,12 +116,14 @@ def run_client():
                 break
         
         # Recieve the appropriate response from the server about the order
-        response = client_socket.recv(1024).decode()
+        response = decrypt_data(client_socket.recv(4096), client_private_key)
+        print("im here")
         print(response)
         
-        # Recieve the updated share price from the server
-        share_price = int(client_socket.recv(1024).decode())
-        print(f"New share price: {share_price}")   
+        # Recieve the new share price from the server
+        share_price = int(decrypt_data(client_socket.recv(4096), client_private_key))
+        print(f"New share price: {share_price}")    
+        
  
 if __name__ == '__main__':
     run_client()

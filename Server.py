@@ -2,18 +2,17 @@ import socket
 import threading
 from datetime import *
 from server_constants import *
-# my helper libraries
 from server_lib import *
 from db_tools import *
 from server_UI import *
+from encryption_lib import *
 
-list_of_connections = {} # (ip, port): username
-stock_prices_history = {} # stock_symbol: [list of stock prices]
+list_of_connections = {}  # (ip, port): username
+stock_prices_history = {}  # stock_symbol: [list of stock prices]
 
 def update_stock_prices_history():
     for stock in get_all_column_values(mydb, "stocks", "symbol"):
         stock_prices_history[stock] = [get_current_share_price(mydb, stock)] # Initialize the stock prices history with the current share price
-
 
 # Mutex initialization
 mutex = threading.Lock()
@@ -21,39 +20,53 @@ mutex = threading.Lock()
 # When a user connects, its thread referred to deal_maker function
 def deal_maker(mydb, conn):
     try:
+        # Load the correct keys
+        server_private_key = load_server_private_key()  # Used to decrypt client messages
+        client_public_key = load_client_public_key()    # Used to encrypt messages for the client
+
         print("in deal_maker")
-        username, hashed_password = handle_user_connection(mydb, conn) # Get username and hashed password
+
+        # Authenticate user and get username + hashed password
+        username, hashed_password = handle_user_connection(mydb, conn, server_private_key, client_public_key)
         print("username is: ", username)
         print("hashed_password is: ", hashed_password)
-        list_of_connections[conn.getpeername()] = username # Add the connection to the list of connections
+
+        list_of_connections[conn.getpeername()] = username  # Add the connection to the list of connections
         print(list_of_connections)
-        
+
         with mutex:
             # Refresh the connected clients table
-            connected_clients_list = [(ip, port, user) for (ip, port), user in list_of_connections.items()] # list of tuples (ip, port, username)
+            connected_clients_list = [(ip, port, user) for (ip, port), user in list_of_connections.items()]  
             refresh_connected_clients(connected_clients_list)
-        
-        balance = handle_user_balance(mydb, conn, username, hashed_password) # Check if the user exists
-        # If not - creates it and asks for balance
-        # If yes - takes the recent balance
-        list_of_stocks = get_all_column_values(mydb, "stocks", "symbol") # Get the stocks from the database
-        conn.send(str(list_of_stocks).encode()) # Send the client the list of stocks
-        stock_symbol = conn.recv(1024).decode().upper() # Recieve the stock symbol from the client
-        share_price = get_current_share_price(mydb, stock_symbol) # Get the current share price
-        conn.send(str(share_price).encode()) # Send the client the updated share price
+
+        # Handle balance
+        balance = handle_user_balance(mydb, conn, username, hashed_password, server_private_key, client_public_key)
+
+        # Get available stocks and send the list to the client
+        list_of_stocks = get_all_column_values(mydb, "stocks", "symbol")  
+        conn.send(encrypt_data(str(list_of_stocks), client_public_key))  
+
+        # Receive stock symbol from client
+        stock_symbol = decrypt_data(conn.recv(4096), server_private_key).upper()  
+        share_price = get_current_share_price(mydb, stock_symbol)  
+
+        # Send the client the updated share price
+        conn.send(encrypt_data(str(share_price), client_public_key))  
 
         with mutex:
             # Initialize stock history if not already present
             if stock_symbol not in stock_prices_history:
                 stock_prices_history[stock_symbol] = []
-            
+
         while True:
             print("Waiting for order")
-            order = conn.recv(1024).decode() # Recieve the order from the client
+
+            # Receive order from client
+            order = decrypt_data(conn.recv(4096), server_private_key)
 
             # Error handling: empty order
             if not order:
-                conn.send("Error: the order input is empty".encode())
+                conn.send(encrypt_data("Error: the order input is empty", client_public_key))
                 continue
 
             print("Order is:", order)
@@ -64,36 +77,32 @@ def deal_maker(mydb, conn):
                     param = order.split(delimiter)
 
                     # Validate format: delimiter and numeric amount check
-                    # If the order is not in the format 'side$amount' - send error and ask for order again
                     if len(param) != 2:
-                        conn.send("Error: Incorrect format. Use 'side$amount format.".encode())
+                        conn.send(encrypt_data("Error: Incorrect format. Use 'side$amount' format.", client_public_key))
                         continue
                     
-                    # If the amount is not a numeric value - send error and ask for order again
                     if not param[1].isdigit():
-                        conn.send("Error: Amount must be a numeric value.".encode())
+                        conn.send(encrypt_data("Error: Amount must be a numeric value.", client_public_key))
                         continue
 
                     side, amount = param[0].upper(), int(param[1])
 
                     # Validate the "side" parameter
                     if side.upper() not in ["B", "S"]:
-                        conn.send("Error: Invalid side parameter. Use 'B' for buy or 'S' for sell.".encode())
+                        conn.send(encrypt_data("Error: Invalid side parameter. Use 'B' for buy or 'S' for sell.", client_public_key))
                         continue
 
-                    # If all validations pass
-                    conn.send("Order recieved".encode())
+                    # If all validations pass, send confirmation to the client
+                    conn.send(encrypt_data("Order recieved", client_public_key))
 
                     # Calculate the whole deal cost
                     deal = share_price * amount
-                    
+
                     # Handle the order
-                    
-                    # If the side is "sell":
-                    if side.upper() == "S":
-                        # Add the deal cost to the balance of the client
-                        balance += deal
-                        # Document the transaction in the Transactions table
+                    if side.upper() == "S":  # Selling
+                        balance += deal  # Add the deal cost to the balance of the client
+
+                        # Document transaction in the Transactions table
                         insert_row(
                             mydb,
                             "transactions",
@@ -101,20 +110,19 @@ def deal_maker(mydb, conn):
                             "(%s, %s, %s, %s, %s, %s, %s)",
                             (username, get_client_id(mydb, username, hashed_password), "S", stock_symbol, share_price, amount, datetime.now())
                         )
-                        # Adjust the share price according to the amount of shares that have been sold.
+
+                        # Adjust the share price based on selling activity
                         adjustment = int((amount * share_price) * 0.01)
                         share_price = max(1, share_price - adjustment)
-                        # Send confirmation to the client with his updated balance
-                        conn.send(f"Sale completed. Your updated balance: {balance}".encode())
-                    
-                    # If the side is "buy":
-                    else:
-                        # Check the deal cost is less than user's balance,
-                        # if not - send error and ask for order again
-                        if balance >= deal:
-                            # Subtract the deal cost from the user's balance
-                            balance -= deal
-                            # Document the transaction in the Transactions table
+
+                        # Send confirmation to the client
+                        conn.send(encrypt_data(f"Sale completed. Your updated balance: {balance}", client_public_key))
+
+                    else:  # Buying
+                        if balance >= deal:  # Check if client has enough funds
+                            balance -= deal  # Deduct the cost
+
+                            # Document transaction in the Transactions table
                             insert_row(
                                 mydb,
                                 "transactions",
@@ -122,44 +130,48 @@ def deal_maker(mydb, conn):
                                 "(%s, %s, %s, %s, %s, %s, %s)",
                                 (username, get_client_id(mydb, username, hashed_password), "B", stock_symbol, share_price, amount, datetime.now())
                             )        
-                            # Adjust the share price according to the amount of shares that have been bought.            
+
+                            # Adjust the share price based on buying activity
                             adjustment = int((amount * share_price) * 0.01)
                             share_price += adjustment
-                            # Send confirmation to the client with his updated balance
-                            conn.send(f"Purchase successful. New balance: {balance}".encode())
-                        elif balance < deal:
-                            # Error handling: insufficient balance for order
-                            conn.send(f"Error: Insufficient balance for this purchase. Your balance is: {balance}".encode())
+
+                            # Send confirmation to the client
+                            conn.send(encrypt_data(f"Purchase successful. New balance: {balance}", client_public_key))
+
                         else:
-                            # Error handling: amount of shares bigger than the number of available shares.
-                            conn.send("Error: Not enough shares available.".encode())
-                    
+                            conn.send(encrypt_data(f"Error: Insufficient balance for this purchase. Your balance is: {balance}", client_public_key))
+
                     # Update the stock price history
                     stock_prices_history[stock_symbol].append(share_price)
-                    
+
                     # Maintain only the last 10 prices
                     if len(stock_prices_history[stock_symbol]) > 10:
                         stock_prices_history[stock_symbol].pop(0)
-                        
+
                     print(stock_prices_history)
-                    
+
                     refresh_transactions_table(mydb)
                     refresh_stock_graphs({stock_symbol: stock_prices_history[stock_symbol]})
 
                 except ValueError:
-                    conn.send("Error: Invalid data format.".encode())
-            update_all_data(mydb, conn, username, hashed_password, balance, side, amount, stock_symbol, share_price)
+                    conn.send(encrypt_data("Error: Invalid data format.", client_public_key))
 
-    except ConnectionResetError as e:
-        # Error handling: connection forcibly aborted by the client (process killed)
+            # Update all necessary data
+            update_all_data(mydb, conn, username, hashed_password, balance, side, amount, stock_symbol, share_price, client_public_key)
+
+    except ConnectionResetError:
         print(f"Connection with {conn} was forcibly aborted")
+
     finally:
-        list_of_connections.pop(conn.getpeername()) # Remove the connection from the list of connections
-        connected_clients_list = [(ip, port, user) for (ip, port), user in list_of_connections.items()] # refresh the connected clients list after removing the connection
-        refresh_connected_clients(connected_clients_list) # Refresh the connected clients table
+        # Remove connection from list
+        list_of_connections.pop(conn.getpeername())  
+        connected_clients_list = [(ip, port, user) for (ip, port), user in list_of_connections.items()]  
+        refresh_connected_clients(connected_clients_list)  
+
         print(list_of_connections)
         conn.close()
         print(f"Connection with {conn} closed")
+
 
 
 # Server and UI initialization

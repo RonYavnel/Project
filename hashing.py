@@ -14,5 +14,11 @@ def delete_row_in_table_with_specific_value(mydb, tableName, columnName, value):
     mycursor.execute(sql, (value,))
     mydb.commit()
     
+def delete_all_rows_in_table(mydb, tableName):
+    mycursor = mydb.cursor()
+    sql = "DELETE FROM " + tableName
+    mycursor.execute(sql)
+    mydb.commit()
+    
 mydb = init_with_db("stocktradingdb")
-delete_row_in_table_with_specific_value(mydb, "users", "username", "ron")
+delete_all_rows_in_table(mydb, "users")
