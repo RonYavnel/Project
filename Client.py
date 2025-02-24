@@ -113,7 +113,7 @@ class Client:
                 print(server_response)
 
                 # If the server confirms the order is valid, break the loop
-                if server_response == "Order received":
+                if server_response == "Order recieved":
                     break
             
             # Receive the appropriate response from the server about the order

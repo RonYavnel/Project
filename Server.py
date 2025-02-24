@@ -128,7 +128,7 @@ class Server:
                             continue
                         
                         # If all validations pass, send confirmation to the client
-                        conn.send(self.e.encrypt_data("Order received", client_public_key))
+                        conn.send(self.e.encrypt_data("Order recieved", client_public_key))
                         
                         # Calculate the whole deal cost
                         deal = share_price * amount
