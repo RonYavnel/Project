@@ -8,6 +8,7 @@ from server_UI import ServerUI
 from encryption_lib import Encryption
 
 class Server:
+    import time
     
     def __init__(self, host, port):
         self.host = host
@@ -18,7 +19,7 @@ class Server:
         self.stock_prices_history = {}  # stock_symbol: [list of stock prices]
         self.mutex = threading.Lock()
         self.e = Encryption()
-        self.ui = ServerUI()  # Instantiate the ServerUI class
+        self.ui = ServerUI(self.stop_server)  # Pass the stop_server callback to the UI
 
     def update_stock_prices_history(self):
         for stock in get_all_column_values(self.mydb, "stocks", "symbol"):
@@ -33,11 +34,16 @@ class Server:
 
     def run_server(self):
         self.init_server()
-        while True:
-            # For each connection: accept, and send it to thread
-            conn = self.server_socket.accept()[0]
-            client_thread = threading.Thread(target=self.deal_maker, args=(conn,))
-            client_thread.start()
+        # If the server is running - accept connections
+        try:
+            while True:
+                # For each connection: accept, and send it to thread
+                conn = self.server_socket.accept()[0]
+                client_thread = threading.Thread(target=self.deal_maker, args=(conn,))
+                client_thread.start()
+        # If the server socket is closed - print a message
+        except OSError:
+            print("Server socket closed")
 
     def initialize_database(self):
         # Initiate the connection with the sql server
@@ -54,6 +60,8 @@ class Server:
                      "(username VARCHAR(255), hashed_password VARCHAR(255), client_id INT NOT NULL PRIMARY KEY auto_increment, ip VARCHAR(255), port INT, last_seen DATETIME, balance INT)")
 
     def deal_maker(self, conn):
+        import time
+        
         try:
             # Load the correct keys
             server_private_key = self.e.load_server_private_key()  # Used to decrypt client messages
@@ -94,6 +102,7 @@ class Server:
                     self.stock_prices_history[stock_symbol] = []
 
             while True:
+
                 print("Waiting for order")
 
                 # Receive order from client
@@ -128,8 +137,10 @@ class Server:
                             continue
                         
                         # If all validations pass, send confirmation to the client
-                        conn.send(self.e.encrypt_data("Order recieved", client_public_key))
+                        conn.send(self.e.encrypt_data("Order received", client_public_key))
                         
+                        time.sleep(1)
+                           
                         # Calculate the whole deal cost
                         deal = share_price * amount
 
@@ -209,6 +220,10 @@ class Server:
 
     def start_ui(self):
         self.ui.show_combined_ui(self.mydb, self.list_of_connections, get_all_column_values(self.mydb, "stocks", "symbol"), self.stock_prices_history)
+
+    def stop_server(self):
+        if self.server_socket:
+            self.server_socket.close()
 
     def run(self):
         print("Server is running")

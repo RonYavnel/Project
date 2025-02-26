@@ -5,7 +5,7 @@ from encryption_lib import Encryption
 DEBUG = False
 
 class Client:
-    
+        
     def __init__(self, host, port):
         self.host = host
         self.port = port
@@ -72,6 +72,7 @@ class Client:
             print(f"Your current balance: {current_balance}")
 
     def run(self):
+                
         # Initialize the client socket and connect to the server
         self.client_socket = socket.socket()
         self.client_socket.connect((self.host, self.port))
@@ -111,10 +112,11 @@ class Client:
                 # Receive feedback from the server about the order
                 server_response = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
                 print(server_response)
-
+                                
                 # If the server confirms the order is valid, break the loop
                 if server_response == "Order recieved":
                     break
+            
             
             # Receive the appropriate response from the server about the order
             response = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)

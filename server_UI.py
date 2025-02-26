@@ -15,14 +15,15 @@ HEADER_FG = "#ffffff"  # White text for headers
 FONT = ("Helvetica", 12)
 
 class ServerUI:
-    def __init__(self):
+    def __init__(self, on_close_callback):
         self.stock_graph_windows = {}  # To store graph windows for each stock
         self.connected_clients_tree = None
         self.transactions_tree = None
+        self.on_close_callback = on_close_callback  # Callback to stop the server
 
     def play_intro_sound(self):
         pygame.mixer.init()
-        pygame.mixer.music.load("intro.mp3")  # Replace with your sound file
+        pygame.mixer.music.load("intro.mp3")
         pygame.mixer.music.play()
 
     def configure_styles(self):
@@ -300,6 +301,9 @@ class ServerUI:
         # Show the logo and transition to the main UI
         self.show_logo_and_transition(root, initialize_ui)
         self.play_intro_sound()
+
+        # Add a protocol handler to stop the server when the window is closed
+        root.protocol("WM_DELETE_WINDOW", self.on_close_callback)
 
         root.mainloop()
 
