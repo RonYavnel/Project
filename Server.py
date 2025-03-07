@@ -8,7 +8,6 @@ from server_UI import ServerUI
 from encryption_lib import Encryption
 
 class Server:
-    import time
     
     def __init__(self, host, port):
         self.host = host
@@ -20,8 +19,9 @@ class Server:
         self.mutex = threading.Lock()
         self.e = Encryption()
         self.ui = ServerUI(self.stop_server)  # Pass the stop_server callback to the UI
+        self.e.generate_keys()
 
-    def update_stock_prices_history(self):
+    def setup_stock_prices_history(self):
         for stock in get_all_column_values(self.mydb, "stocks", "symbol"):
             self.stock_prices_history[stock] = [get_current_share_price(self.mydb, stock)]  # Initialize the stock prices history with the current share price
 
@@ -32,7 +32,7 @@ class Server:
         # Wait for connections from clients
         self.server_socket.listen(20)
 
-    def run_server(self):
+    def handle_connections(self):
         self.init_server()
         # If the server is running - accept connections
         try:
@@ -53,11 +53,14 @@ class Server:
         self.mydb = init_with_db("stocktradingdb")
         # Create the tables in the database
         create_table(self.mydb, "stocks",
-                     "(company_name VARCHAR(255), symbol VARCHAR(255), stock_id INT NOT NULL PRIMARY KEY auto_increment, shares_sold INT, num_of_shares INT, current_price INT, highest_price INT, lowest_price INT)")
+                     """(company_name VARCHAR(255), symbol VARCHAR(255), stock_id INT NOT NULL PRIMARY KEY auto_increment, 
+                     shares_sold INT, num_of_shares INT, current_price INT, highest_price INT, lowest_price INT)""")
         create_table(self.mydb, "transactions",
-                     "(username VARCHAR(255), client_id VARCHAR(255), side CHAR, stock_symbol VARCHAR(255), share_price INT, amount INT, time_stamp TIMESTAMP)")
+                     """(username VARCHAR(255), client_id VARCHAR(255), side CHAR, 
+                     stock_symbol VARCHAR(255), share_price INT, amount INT, time_stamp TIMESTAMP)""")
         create_table(self.mydb, "users",
-                     "(username VARCHAR(255), hashed_password VARCHAR(255), client_id INT NOT NULL PRIMARY KEY auto_increment, ip VARCHAR(255), port INT, last_seen DATETIME, balance INT)")
+                     """(username VARCHAR(255), hashed_password VARCHAR(255), client_id INT NOT NULL PRIMARY KEY auto_increment, 
+                     sip VARCHAR(255), port INT, last_seen DATETIME, balance INT)""")
 
     def deal_maker(self, conn):
         import time
@@ -139,7 +142,7 @@ class Server:
                         # If all validations pass, send confirmation to the client
                         conn.send(self.e.encrypt_data("Order received", client_public_key))
                         
-                        time.sleep(1)
+                        time.sleep(1) # Simulate processing time
                            
                         # Calculate the whole deal cost
                         deal = share_price * amount
@@ -225,12 +228,12 @@ class Server:
         if self.server_socket:
             self.server_socket.close()
 
-    def run(self):
+    def run_whole_server(self):
         print("Server is running")
         self.initialize_database()
         print("Database is ready")
 
-        self.update_stock_prices_history()
+        self.setup_stock_prices_history()
         print("Stock prices history is updated")
 
         # Start the UI in a separate thread
@@ -238,8 +241,8 @@ class Server:
         ui_thread.start()
 
         # Run the server in the main thread
-        self.run_server()
+        self.handle_connections()
 
 if __name__ == '__main__':
     server = Server(HOST, PORT)
-    server.run()
+    server.run_whole_server()

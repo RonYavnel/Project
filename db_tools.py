@@ -91,6 +91,14 @@ def delete_row(mydb, tableName, columnName, columnValue):
         print("No column name with name "+ tableName)
 
 
+def get_user_id_by_ip_and_port(mydb, ip, port):
+    mycursor = mydb.cursor()
+    sql = "SELECT user_id FROM users WHERE ip = %s AND port = %s"
+    mycursor.execute(sql, (ip, port))
+    result = mycursor.fetchone()
+    return result[0]
+
+
 # Function that returns all the rows of a table in a database
 def get_all_rows(mydb, tableName):
     mycursor = mydb.cursor()

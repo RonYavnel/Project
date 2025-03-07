@@ -76,7 +76,7 @@ class Client:
         # Initialize the client socket and connect to the server
         self.client_socket = socket.socket()
         self.client_socket.connect((self.host, self.port))
-
+        
         # Get the username and password from the client
         self.get_and_send_username_and_password()
         
@@ -114,7 +114,7 @@ class Client:
                 print(server_response)
                                 
                 # If the server confirms the order is valid, break the loop
-                if server_response == "Order recieved":
+                if server_response == "Order received":
                     break
             
             
