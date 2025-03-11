@@ -1,9 +1,8 @@
 import socket
 import threading
 from datetime import datetime
-from time import sleep
 from server_constants import *
-from server_lib import Server_Lib
+from server_lib import *
 from db_tools import *
 from server_UI import ServerUI
 from encryption_lib import Encryption
@@ -19,14 +18,12 @@ class Server:
         self.stock_prices_history = {}  # stock_symbol: [list of stock prices]
         self.mutex = threading.Lock()
         self.e = Encryption()
-        self.tls = DB_Tools()
-        self.s_lib = Server_Lib()
         self.ui = ServerUI(self.stop_server)  # Pass the stop_server callback to the UI
         self.e.generate_keys()
 
     def setup_stock_prices_history(self):
-        for stock in self.tls.get_all_column_values(self.mydb, "stocks", "symbol"):
-            self.stock_prices_history[stock] = [self.s_lib.get_current_share_price(self.mydb, stock)]  # Initialize the stock prices history with the current share price
+        for stock in get_all_column_values(self.mydb, "stocks", "symbol"):
+            self.stock_prices_history[stock] = [get_current_share_price(self.mydb, stock)]  # Initialize the stock prices history with the current share price
 
     def init_server(self):
         # Initiate a socket
@@ -50,22 +47,23 @@ class Server:
 
     def initialize_database(self):
         # Initiate the connection with the sql server
-        my_sql_server = self.tls.init()
+        my_sql_server = init()
         # Create a new database and connect to it
-        self.tls.create_new_database(my_sql_server, "stocktradingdb")
-        self.mydb = self.tls.init_with_db("stocktradingdb")
+        create_new_database(my_sql_server, "stocktradingdb")
+        self.mydb = init_with_db("stocktradingdb")
         # Create the tables in the database
-        self.tls.create_table(self.mydb, "stocks",
-                              """(company_name VARCHAR(255), symbol VARCHAR(255), stock_id INT NOT NULL PRIMARY KEY auto_increment, 
-                              shares_sold INT, num_of_shares INT, current_price INT, highest_price INT, lowest_price INT)""")
-        self.tls.create_table(self.mydb, "transactions",
-                              """(username VARCHAR(255), client_id VARCHAR(255), side CHAR, 
-                              stock_symbol VARCHAR(255), share_price INT, amount INT, time_stamp TIMESTAMP)""")
-        self.tls.create_table(self.mydb, "users",
-                              """(username VARCHAR(255), hashed_password VARCHAR(255), client_id INT NOT NULL PRIMARY KEY auto_increment, 
-                              ip VARCHAR(255), port INT, last_seen DATETIME, balance INT)""")
+        create_table(self.mydb, "stocks",
+                     """(company_name VARCHAR(255), symbol VARCHAR(255), stock_id INT NOT NULL PRIMARY KEY auto_increment, 
+                     shares_sold INT, num_of_shares INT, current_price INT, highest_price INT, lowest_price INT)""")
+        create_table(self.mydb, "transactions",
+                     """(username VARCHAR(255), client_id VARCHAR(255), side CHAR, 
+                     stock_symbol VARCHAR(255), share_price INT, amount INT, time_stamp TIMESTAMP)""")
+        create_table(self.mydb, "users",
+                     """(username VARCHAR(255), hashed_password VARCHAR(255), client_id INT NOT NULL PRIMARY KEY auto_increment, 
+                     sip VARCHAR(255), port INT, last_seen DATETIME, balance INT)""")
 
     def deal_maker(self, conn):
+        import time
         
         try:
             # Load the correct keys
@@ -75,7 +73,7 @@ class Server:
             print("in deal_maker")
 
             # Authenticate user and get username + hashed password
-            username, hashed_password = self.s_lib.handle_user_connection(self.mydb, conn, server_private_key, client_public_key)
+            username, hashed_password = handle_user_connection(self.mydb, conn, server_private_key, client_public_key)
             print("username is: ", username)
             print("hashed_password is: ", hashed_password)
 
@@ -88,10 +86,10 @@ class Server:
                 self.ui.refresh_connected_clients(connected_clients_list)
 
             # Handle balance
-            balance = self.s_lib.handle_user_balance(self.mydb, conn, username, hashed_password, server_private_key, client_public_key)
+            balance = handle_user_balance(self.mydb, conn, username, hashed_password, server_private_key, client_public_key)
 
             # Get available stocks and send the list to the client
-            list_of_stocks = self.tls.get_all_column_values(self.mydb, "stocks", "symbol")  
+            list_of_stocks = get_all_column_values(self.mydb, "stocks", "symbol")  
             conn.send(self.e.encrypt_data(str(list_of_stocks), client_public_key))  
 
             # Receive stock symbol from client
@@ -100,7 +98,7 @@ class Server:
             
             print("before get_current_share_price")
             print("stock_symbol is: ", stock_symbol)
-            share_price = self.s_lib.get_current_share_price(self.mydb, stock_symbol)  
+            share_price = get_current_share_price(self.mydb, stock_symbol)  
             print("after get_current_share_price")
             # Send the client the updated share price
             conn.send(self.e.encrypt_data(str(share_price), client_public_key))  
@@ -151,7 +149,7 @@ class Server:
                         # If all validations pass, send confirmation to the client
                         conn.send(self.e.encrypt_data("Order received", client_public_key))
                         
-                        sleep(1) # Simulate processing time
+                        time.sleep(1) # Simulate processing time
                            
                         # Calculate the whole deal cost
                         deal = share_price * amount
@@ -161,12 +159,12 @@ class Server:
                             balance += deal  # Add the deal cost to the balance of the client
 
                             # Document transaction in the Transactions table
-                            self.tls.insert_row(
-                                        self.mydb,
-                                        "transactions",
-                                        "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
-                                        "(%s, %s, %s, %s, %s, %s, %s)",
-                                        (username, self.s_lib.get_client_id(self.mydb, username, hashed_password), "S", stock_symbol, share_price, amount, datetime.now())
+                            insert_row(
+                                self.mydb,
+                                "transactions",
+                                "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
+                                "(%s, %s, %s, %s, %s, %s, %s)",
+                                (username, get_client_id(self.mydb, username, hashed_password), "S", stock_symbol, share_price, amount, datetime.now())
                             )
 
                             # Adjust the share price based on selling activity
@@ -181,12 +179,12 @@ class Server:
                                 balance -= deal  # Deduct the cost
 
                                 # Document transaction in the Transactions table
-                                self.tls.insert_row(
-                                            self.mydb,
-                                            "transactions",
-                                            "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
-                                            "(%s, %s, %s, %s, %s, %s, %s)",
-                                            (username, self.s_lib.get_client_id(self.mydb, username, hashed_password), "B", stock_symbol, share_price, amount, datetime.now())
+                                insert_row(
+                                    self.mydb,
+                                    "transactions",
+                                    "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
+                                    "(%s, %s, %s, %s, %s, %s, %s)",
+                                    (username, get_client_id(self.mydb, username, hashed_password), "B", stock_symbol, share_price, amount, datetime.now())
                                 )        
 
                                 # Adjust the share price based on buying activity
@@ -215,7 +213,7 @@ class Server:
                         conn.send(self.e.encrypt_data("Error: Invalid data format.", client_public_key))
 
                 # Update all necessary data
-                self.s_lib.update_all_data(self.mydb, conn, username, hashed_password, balance, side, amount, stock_symbol, share_price, client_public_key)
+                update_all_data(self.mydb, conn, username, hashed_password, balance, side, amount, stock_symbol, share_price, client_public_key)
 
         except ConnectionResetError:
             print(f"Connection with {conn} was forcibly aborted")
@@ -231,7 +229,7 @@ class Server:
             print(f"Connection with {conn} closed")
 
     def start_ui(self):
-        self.ui.show_combined_ui(self.mydb, self.list_of_connections, self.tls.get_all_column_values(self.mydb, "stocks", "symbol"), self.stock_prices_history)
+        self.ui.show_combined_ui(self.mydb, self.list_of_connections, get_all_column_values(self.mydb, "stocks", "symbol"), self.stock_prices_history)
 
     def stop_server(self):
         if self.server_socket:

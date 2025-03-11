@@ -1,6 +1,6 @@
 from tkinter import *
 from tkinter import ttk
-from db_tools import *
+from db_tools import DB_Tools
 from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -15,6 +15,7 @@ FONT = ("Helvetica", 12)
 
 stock_graph_windows = {}  # To store graph windows for each stock
 
+tls = DB_Tools()
 
 def configure_styles():
     # Define custom styles using ttk.Style
@@ -140,7 +141,7 @@ def show_transactions(root, mydb):
         tree.column(col, width=100, anchor="center")
 
     # Fetch transactions and add data to the table
-    list_of_transactions = get_all_rows(mydb, "transactions")
+    list_of_transactions = tls.get_all_rows(mydb, "transactions")
     for transaction in list_of_transactions:
         tree.insert("", "end", values=transaction)
         tree.see(tree.get_children()[-1])
@@ -311,7 +312,7 @@ def show_combined_ui(mydb, dict_of_connected_people, stocks, stock_prices_histor
 
 
 # Example inputs
-mydb = init_with_db("stocktradingdb")
+mydb = tls.init_with_db("stocktradingdb")
 
 dict_of_connected_people = {("192.168.1.1", 8080): "Alice", ("192.168.1.2", 9090): "Bob"}
 stocks = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA"]
