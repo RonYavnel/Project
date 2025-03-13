@@ -27,6 +27,8 @@ class Server:
     def setup_stock_prices_history(self):
         for stock in self.tls.get_all_column_values(self.mydb, "stocks", "symbol"):
             self.stock_prices_history[stock] = [self.s_lib.get_current_share_price(self.mydb, stock)]  # Initialize the stock prices history with the current share price
+            while len(self.stock_prices_history[stock]) <= 3:
+                self.stock_prices_history[stock].append(self.stock_prices_history[stock][-1])
 
     def init_server(self):
         # Initiate a socket
@@ -66,61 +68,50 @@ class Server:
                               ip VARCHAR(255), port INT, last_seen DATETIME, balance INT)""")
 
     def deal_maker(self, conn):
-        
         try:
-            # Load the correct keys
-            server_private_key = self.e.load_server_private_key()  # Used to decrypt client messages
-            client_public_key = self.e.load_client_public_key()    # Used to encrypt messages for the client
+            server_private_key = self.e.load_server_private_key()
+            client_public_key = self.e.load_client_public_key()
 
             print("in deal_maker")
 
-            # Authenticate user and get username + hashed password
             username, hashed_password = self.s_lib.handle_user_connection(self.mydb, conn, server_private_key, client_public_key)
             print("username is: ", username)
-            print("hashed_password is: ", hashed_password)
 
-            self.list_of_connections[conn.getpeername()] = username  # Add the connection to the list of connections
+            self.list_of_connections[conn.getpeername()] = username
             print(self.list_of_connections)
 
             with self.mutex:
-                # Refresh the connected clients table
-                connected_clients_list = [(ip, port, user) for (ip, port), user in self.list_of_connections.items()]  
+                connected_clients_list = [(ip, port, user) for (ip, port), user in self.list_of_connections.items()]
                 self.ui.refresh_connected_clients(connected_clients_list)
 
-            # Handle balance
             balance = self.s_lib.handle_user_balance(self.mydb, conn, username, hashed_password, server_private_key, client_public_key)
 
-            # Get available stocks and send the list to the client
-            list_of_stocks = self.tls.get_all_column_values(self.mydb, "stocks", "symbol")  
-            conn.send(self.e.encrypt_data(str(list_of_stocks), client_public_key))  
-
-            # Receive stock symbol from client
-            stock_symbol = self.e.decrypt_data(conn.recv(4096), server_private_key).upper()  
-            
-            
-            print("before get_current_share_price")
-            print("stock_symbol is: ", stock_symbol)
-            share_price = self.s_lib.get_current_share_price(self.mydb, stock_symbol)  
-            print("after get_current_share_price")
-            # Send the client the updated share price
-            conn.send(self.e.encrypt_data(str(share_price), client_public_key))  
-            print("after send share price")
-            
-            
-            
-            with self.mutex:
-                # Initialize stock history if not already present
-                if stock_symbol not in self.stock_prices_history:
-                    self.stock_prices_history[stock_symbol] = []
-
             while True:
+                # Get available stocks and send the list to the client
+                list_of_stocks = self.tls.get_all_column_values(self.mydb, "stocks", "symbol")
+                conn.send(self.e.encrypt_data(str(list_of_stocks), client_public_key))
+
+                # Ask client for a stock symbol before each order
+                stock_symbol = self.e.decrypt_data(conn.recv(4096), server_private_key).upper()
+
+                print("before get_current_share_price")
+                print("stock_symbol is: ", stock_symbol)
+                share_price = self.s_lib.get_current_share_price(self.mydb, stock_symbol)
+                print("after get_current_share_price")
+
+                # Send updated share price to client
+                conn.send(self.e.encrypt_data(str(share_price), client_public_key))
+                print("after send share price")
+
+                with self.mutex:
+                    if stock_symbol not in self.stock_prices_history:
+                        self.stock_prices_history[stock_symbol] = []
 
                 print("Waiting for order")
 
                 # Receive order from client
                 order = self.e.decrypt_data(conn.recv(4096), server_private_key)
 
-                # Error handling: empty order
                 if not order:
                     conn.send(self.e.encrypt_data("Error: the order input is empty", client_public_key))
                     continue
@@ -132,77 +123,63 @@ class Server:
                         delimiter = "$"
                         param = order.split(delimiter)
 
-                        # Validate format: delimiter and numeric amount check
                         if len(param) != 2:
                             conn.send(self.e.encrypt_data("Error: Incorrect format. Use 'side$amount' format.", client_public_key))
                             continue
-                        
+
                         if not param[1].isdigit():
                             conn.send(self.e.encrypt_data("Error: Amount must be a numeric value.", client_public_key))
                             continue
 
                         side, amount = param[0].upper(), int(param[1])
 
-                        # Validate the "side" parameter
                         if side.upper() not in ["B", "S"]:
                             conn.send(self.e.encrypt_data("Error: Invalid side parameter. Use 'B' for buy or 'S' for sell.", client_public_key))
                             continue
-                        
-                        # If all validations pass, send confirmation to the client
+
                         conn.send(self.e.encrypt_data("Order received", client_public_key))
-                        
-                        sleep(1) # Simulate processing time
-                           
-                        # Calculate the whole deal cost
+
+                        sleep(1)
+
                         deal = share_price * amount
 
-                        # Handle the order
-                        if side.upper() == "S":  # Selling
-                            balance += deal  # Add the deal cost to the balance of the client
+                        if side.upper() == "S":
+                            balance += deal
 
-                            # Document transaction in the Transactions table
                             self.tls.insert_row(
-                                        self.mydb,
-                                        "transactions",
-                                        "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
-                                        "(%s, %s, %s, %s, %s, %s, %s)",
-                                        (username, self.s_lib.get_client_id(self.mydb, username, hashed_password), "S", stock_symbol, share_price, amount, datetime.now())
+                                self.mydb,
+                                "transactions",
+                                "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
+                                "(%s, %s, %s, %s, %s, %s, %s)",
+                                (username, self.s_lib.get_client_id(self.mydb, username, hashed_password), "S", stock_symbol, share_price, amount, datetime.now())
                             )
 
-                            # Adjust the share price based on selling activity
                             adjustment = int((amount * share_price) * 0.01)
                             share_price = max(1, share_price - adjustment)
 
-                            # Send confirmation to the client
                             conn.send(self.e.encrypt_data(f"Sale completed. Your updated balance: {balance}", client_public_key))
 
-                        else:  # Buying
-                            if balance >= deal:  # Check if client has enough funds
-                                balance -= deal  # Deduct the cost
+                        else:
+                            if balance >= deal:
+                                balance -= deal
 
-                                # Document transaction in the Transactions table
                                 self.tls.insert_row(
-                                            self.mydb,
-                                            "transactions",
-                                            "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
-                                            "(%s, %s, %s, %s, %s, %s, %s)",
-                                            (username, self.s_lib.get_client_id(self.mydb, username, hashed_password), "B", stock_symbol, share_price, amount, datetime.now())
-                                )        
+                                    self.mydb,
+                                    "transactions",
+                                    "(username, client_id, side, stock_symbol, share_price, amount, time_stamp)", 
+                                    "(%s, %s, %s, %s, %s, %s, %s)",
+                                    (username, self.s_lib.get_client_id(self.mydb, username, hashed_password), "B", stock_symbol, share_price, amount, datetime.now())
+                                )
 
-                                # Adjust the share price based on buying activity
                                 adjustment = int((amount * share_price) * 0.01)
                                 share_price += adjustment
 
-                                # Send confirmation to the client
                                 conn.send(self.e.encrypt_data(f"Purchase successful. New balance: {balance}", client_public_key))
-
                             else:
                                 conn.send(self.e.encrypt_data(f"Error: Insufficient balance for this purchase. Your balance is: {balance}", client_public_key))
 
-                        # Update the stock price history
                         self.stock_prices_history[stock_symbol].append(share_price)
 
-                        # Maintain only the last 10 prices
                         if len(self.stock_prices_history[stock_symbol]) > 15:
                             self.stock_prices_history[stock_symbol].pop(0)
 
@@ -214,21 +191,20 @@ class Server:
                     except ValueError:
                         conn.send(self.e.encrypt_data("Error: Invalid data format.", client_public_key))
 
-                # Update all necessary data
                 self.s_lib.update_all_data(self.mydb, conn, username, hashed_password, balance, side, amount, stock_symbol, share_price, client_public_key)
 
         except ConnectionResetError:
             print(f"Connection with {conn} was forcibly aborted")
 
         finally:
-            # Remove connection from list
-            self.list_of_connections.pop(conn.getpeername())  
-            connected_clients_list = [(ip, port, user) for (ip, port), user in self.list_of_connections.items()]  
-            self.ui.refresh_connected_clients(connected_clients_list)  
+            self.list_of_connections.pop(conn.getpeername())
+            connected_clients_list = [(ip, port, user) for (ip, port), user in self.list_of_connections.items()]
+            self.ui.refresh_connected_clients(connected_clients_list)
 
             print(self.list_of_connections)
             conn.close()
             print(f"Connection with {conn} closed")
+
 
     def start_ui(self):
         self.ui.show_combined_ui(self.mydb, self.list_of_connections, self.tls.get_all_column_values(self.mydb, "stocks", "symbol"), self.stock_prices_history)

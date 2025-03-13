@@ -72,59 +72,48 @@ class Client:
             print(f"Your current balance: {current_balance}")
 
     def run_whole_client(self):
-                
-        # Initialize the client socket and connect to the server
         self.client_socket = socket.socket()
         self.client_socket.connect((self.host, self.port))
         
-        # Get the username and password from the client
         self.get_and_send_username_and_password()
-        
-        # Initialize the client's balance
         self.initialize_client_balance()
 
-        # Get the list of stocks from the server for client's choice
-        list_of_stocks = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
-        
-        # Get the wanted stock symbol from the client
-        stock_symbol = self.general_input(f"Choose a stock from {list_of_stocks}: ", "AAPL").upper()
-
-        # Check if the stock symbol is valid
-        while stock_symbol not in list_of_stocks:
-            stock_symbol = self.general_input(f"Invalid stock. Choose from {list_of_stocks}: ", "AAPL").upper()
-        
-        # Send a valid stock symbol to the server
-        self.client_socket.send(self.e.encrypt_data(stock_symbol, self.server_public_key))
-        
-        # Receive the current share price from the server
-        share_price = int(self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key))
-        print(f"Current share price: {share_price}")
-            
-        # Listen to client's orders until he sends an empty message
         while True:
-            while True:
-                # Get the client's order
-                order = self.general_input("Enter your order (side$amount): ", "b$10")
-                
-                # Send the order to the server (even if it is empty)
-                self.client_socket.send(self.e.encrypt_data(order, self.server_public_key) if order else self.e.encrypt_data(" ", self.server_public_key))
+            # Get the list of stocks from the server for client's choice
+            list_of_stocks = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
 
-                # Receive feedback from the server about the order
+            # Get the wanted stock symbol from the client
+            stock_symbol = self.general_input(f"Choose a stock from {list_of_stocks}: ", "AAPL").upper()
+
+            # Check if the stock symbol is valid
+            while stock_symbol not in list_of_stocks:
+                stock_symbol = self.general_input(f"Invalid stock. Choose from {list_of_stocks}: ", "AAPL").upper()
+
+            # Send the stock symbol to the server
+            self.client_socket.send(self.e.encrypt_data(stock_symbol, self.server_public_key))
+
+            # Receive the current share price from the server
+            share_price = int(self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key))
+            print(f"Current share price: {share_price}")
+
+            while True:
+                print("before order")
+                order = self.general_input("Enter your order (side$amount): ", "")
+
+                self.client_socket.send(self.e.encrypt_data(order, self.server_public_key))
+
                 server_response = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
                 print(server_response)
-                                
-                # If the server confirms the order is valid, break the loop
+
                 if server_response == "Order received":
                     break
-            
-            
-            # Receive the appropriate response from the server about the order
+
             response = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
             print(response)
-            
-            # Receive the new share price from the server
+
             share_price = int(self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key))
             print(f"New share price: {share_price}")
+
 
 
 if __name__ == '__main__':
