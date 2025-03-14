@@ -27,8 +27,7 @@ class Server:
     def setup_stock_prices_history(self):
         for stock in self.tls.get_all_column_values(self.mydb, "stocks", "symbol"):
             self.stock_prices_history[stock] = [self.s_lib.get_current_share_price(self.mydb, stock)]  # Initialize the stock prices history with the current share price
-            while len(self.stock_prices_history[stock]) <= 3:
-                self.stock_prices_history[stock].append(self.stock_prices_history[stock][-1])
+            
 
     def init_server(self):
         # Initiate a socket
@@ -88,21 +87,20 @@ class Server:
 
             while True:
                 # Get available stocks and send the list to the client
+                stocks_and_prices = {}
                 list_of_stocks = self.tls.get_all_column_values(self.mydb, "stocks", "symbol")
-                conn.send(self.e.encrypt_data(str(list_of_stocks), client_public_key))
+                list_of_current_prices = self.tls.get_all_column_values(self.mydb, "stocks", "current_price")
+                for i in range(len(list_of_stocks)):
+                    stocks_and_prices[list_of_stocks[i]] = list_of_current_prices[i]
+                print("stocks_and_prices is: ", stocks_and_prices)
+
+                conn.send(self.e.encrypt_data(str(stocks_and_prices), client_public_key))
 
                 # Ask client for a stock symbol before each order
                 stock_symbol = self.e.decrypt_data(conn.recv(4096), server_private_key).upper()
 
-                print("before get_current_share_price")
-                print("stock_symbol is: ", stock_symbol)
-                share_price = self.s_lib.get_current_share_price(self.mydb, stock_symbol)
-                print("after get_current_share_price")
-
-                # Send updated share price to client
-                conn.send(self.e.encrypt_data(str(share_price), client_public_key))
-                print("after send share price")
-
+                share_price = stocks_and_prices[stock_symbol]
+                
                 with self.mutex:
                     if stock_symbol not in self.stock_prices_history:
                         self.stock_prices_history[stock_symbol] = []

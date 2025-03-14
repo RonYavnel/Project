@@ -80,7 +80,7 @@ class Server_Lib:
         if share_price < self.get_lowest_share_price(mydb, stock_symbol):  # Update the lowest_share_price if needed
             self.update_lowest_price(mydb, stock_symbol, share_price)
         conn.send(self.e.encrypt_data(str(share_price), client_public_key)) # Send the updated share price to the client
-
+                
     # Function that checks if username with given name and password exists
     def is_user_exists(self, mydb, username, password):
         return self.tls.fetchone_functions_two_params(mydb,

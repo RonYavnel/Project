@@ -1,6 +1,7 @@
 import socket
 from getpass import getpass
 from encryption_lib import Encryption
+import ast
 
 DEBUG = False
 
@@ -80,8 +81,9 @@ class Client:
 
         while True:
             # Get the list of stocks from the server for client's choice
-            list_of_stocks = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
-
+            stocks_and_prices = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
+            stocks_and_prices = ast.literal_eval(stocks_and_prices)
+            list_of_stocks = list(stocks_and_prices.keys())
             # Get the wanted stock symbol from the client
             stock_symbol = self.general_input(f"Choose a stock from {list_of_stocks}: ", "AAPL").upper()
 
@@ -93,7 +95,7 @@ class Client:
             self.client_socket.send(self.e.encrypt_data(stock_symbol, self.server_public_key))
 
             # Receive the current share price from the server
-            share_price = int(self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key))
+            share_price = stocks_and_prices[stock_symbol]
             print(f"Current share price: {share_price}")
 
             while True:

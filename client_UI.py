@@ -5,6 +5,7 @@ from PIL import Image, ImageTk
 import pygame
 import socket
 import time
+import ast
 
 class ClientUI:
     def __init__(self, root, client):
@@ -80,27 +81,66 @@ class ClientUI:
         self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         ttk.Label(self.main_frame, text="Balance: ").grid(row=0, column=0, sticky=tk.W)
-        self.balance_label = ttk.Label(self.main_frame, text=f"Balance: {balance:.2f}")
+        self.balance_label = ttk.Label(self.main_frame, text=balance)
         self.balance_label.grid(row=0, column=1, sticky=(tk.W, tk.E))
 
         ttk.Label(self.main_frame, text="Stocks:").grid(row=1, column=0, sticky=tk.W)
-        self.stock_combobox = ttk.Combobox(self.main_frame)
+        
+        # Stock selection dropdown
+        self.stock_combobox = ttk.Combobox(self.main_frame, state="readonly")
         self.stock_combobox.grid(row=1, column=1, sticky=(tk.W, tk.E))
-
-        # Bind stock selection to update the price
+        # Bind event handler to show price when stock is selected
         self.stock_combobox.bind("<<ComboboxSelected>>", self.update_stock_price)
+
+        # "Select" button to confirm stock selection
+        self.select_stock_button = ttk.Button(self.main_frame, text="Select", command=self.confirm_stock_selection)
+        self.select_stock_button.grid(row=1, column=2, padx=5)
+
+        # Stock price label (Default: "Select a stock")
+        self.share_price_label = ttk.Label(self.main_frame, text="Select a stock")
+        self.share_price_label.grid(row=2, column=0, columnspan=2, pady=10)
 
         self.update_stocks()
 
-        ttk.Label(self.main_frame, text="Order (side$amount):").grid(row=2, column=0, sticky=tk.W)
+        # Order input and button (Initially hidden)
+        self.order_label = ttk.Label(self.main_frame, text="Order (side$amount):")
         self.order_entry = ttk.Entry(self.main_frame)
-        self.order_entry.grid(row=2, column=1, sticky=(tk.W, tk.E))
-
         self.order_button = ttk.Button(self.main_frame, text="Place Order", command=self.place_order)
-        self.order_button.grid(row=3, column=0, columnspan=2, pady=10)
 
-        self.share_price_label = ttk.Label(self.main_frame, text="Loading Price...")
-        self.share_price_label.grid(row=4, column=0, columnspan=2, pady=10)
+        # Hide order section until stock is confirmed
+        self.order_label.grid(row=3, column=0, sticky=tk.W)
+        self.order_entry.grid(row=3, column=1, sticky=(tk.W, tk.E))
+        self.order_button.grid(row=4, column=0, columnspan=2, pady=10)
+
+        self.order_label.grid_remove()
+        self.order_entry.grid_remove()
+        self.order_button.grid_remove()
+
+    def confirm_stock_selection(self):
+        """
+        Handles stock selection confirmation.
+        Sends the selected stock to the server and enables order input.
+        """
+        try:
+            stock_symbol = self.stock_combobox.get().strip()
+
+            # Prevent selecting the placeholder
+            if stock_symbol == "-- Select a Stock --":
+                messagebox.showerror("Error", "Please select a valid stock.")
+                return
+
+            print(f"📢 Confirming stock selection: {stock_symbol}")
+
+            # Send the selected stock to the server
+            self.client.client_socket.send(self.client.e.encrypt_data(stock_symbol, self.client.server_public_key))
+
+            # Show order section after successful selection
+            self.order_label.grid()
+            self.order_entry.grid()
+            self.order_button.grid()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to confirm stock: {str(e)}")
 
     def login(self):
         username = self.username_entry.get()
@@ -109,27 +149,30 @@ class ClientUI:
             messagebox.showerror("Error", "Please enter both username and password")
             return
 
-        self.client.client_socket = socket.socket()
-        self.client.client_socket.connect((self.client.host, self.client.port))
+        try:
+            self.client.client_socket = socket.socket()
+            self.client.client_socket.connect((self.client.host, self.client.port))
 
-        self.client.client_socket.send(self.client.e.encrypt_data(username, self.client.server_public_key))
-        time.sleep(0.1)
-        self.client.client_socket.send(self.client.e.encrypt_data(password, self.client.server_public_key))
+            self.client.client_socket.send(self.client.e.encrypt_data(username, self.client.server_public_key))
+            time.sleep(0.1)
+            self.client.client_socket.send(self.client.e.encrypt_data(password, self.client.server_public_key))
 
-        result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+            result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
 
-        if result == '2':
-            messagebox.showerror("Error", "Username already exists. Please enter a new one.")
-            return
+            if result == '2':
+                messagebox.showerror("Error", "Username already exists. Please enter a new one.")
+                return
 
-        balance = self.fetch_balance()
+            balance = self.fetch_balance()
 
-        if result == '1':
-            messagebox.showinfo("Welcome", f"Welcome back {username}!")
-        else:
-            messagebox.showinfo("Welcome", "Nice to meet you! You are now registered.")
+            if result == '1':
+                messagebox.showinfo("Welcome", f"Welcome back {username}!")
+            else:
+                messagebox.showinfo("Welcome", "Nice to meet you! You are now registered.")
 
-        self.create_main_frame(balance)
+            self.create_main_frame(balance)
+        except Exception as e:
+            messagebox.showerror("Connection Error", f"Failed to connect to server: {str(e)}")
 
     def fetch_balance(self):
         try:
@@ -137,84 +180,128 @@ class ClientUI:
             
             if response == "1":
                 balance = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
-                return float(balance)  
+                return balance  
             elif response == "0":
-                new_balance = simpledialog.askfloat("New User", "Enter your starting balance:")
+                new_balance = simpledialog.askinteger("New User", "Enter your starting balance:")
                 if new_balance is not None:
                     self.client.client_socket.send(self.client.e.encrypt_data(str(int(new_balance)), self.client.server_public_key))
                     return new_balance
-            return 0.0  
+            return 0  
         except Exception as e:
             messagebox.showerror("Error", f"Failed to fetch balance: {str(e)}")
-            return 0.0  
+            return 0
 
     def update_stocks(self):
+        """
+        Fetch the list of stocks from the server and update the dropdown.
+        """
         try:
             encrypted_data = self.client.client_socket.recv(4096)
             stock_data = self.client.e.decrypt_data(encrypted_data, self.client.client_private_key)
-            stock_list = stock_data.strip("[]").replace("'", "").split(", ")
+
+            self.stocks_and_prices = ast.literal_eval(stock_data)
+
+            stock_list = list(self.stocks_and_prices.keys())
+
+            # Add a placeholder at the start
+            placeholder = "-- Select a Stock --"
+            stock_list.insert(0, placeholder)
+
             self.stock_combobox["values"] = stock_list
-            if stock_list:
-                self.stock_combobox.current(0)
+            self.stock_combobox.current(0)  # Set the placeholder as default
+
+            self.share_price_label.config(text="Select a stock")
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to update stock list: {str(e)}")
 
     def update_stock_price(self, event=None):
         """
-        Fetch and display the latest stock price when a stock is selected.
-        Ensures stock price requests are not confused with orders.
+        Update the displayed stock price when a stock is selected from the dropdown.
         """
         try:
             stock_symbol = self.stock_combobox.get().strip()
 
-            if not stock_symbol:
-                self.share_price_label.config(text="Select a stock to view price")
+            # Ignore placeholder selection
+            if stock_symbol == "-- Select a Stock --":
+                self.share_price_label.config(text="Select a stock")
                 return
 
-            # Send the stock symbol inside a structured request
-            request_message = f"{stock_symbol}"
-
-            print(f"📢 Requesting price for stock: {stock_symbol}")
-
-            self.client.client_socket.send(self.client.e.encrypt_data(request_message, self.client.server_public_key))
-
-            stock_price = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
-
-            print(f"📢 Received stock price for {stock_symbol}: {stock_price}")
-
-            if "Error" in stock_price:
-                messagebox.showwarning("Stock Not Found", f"Stock '{stock_symbol}' not found!")
-                self.share_price_label.config(text="Stock Not Found")
-            else:
+            # Get price from the cached data
+            if stock_symbol in self.stocks_and_prices:
+                stock_price = self.stocks_and_prices.get(stock_symbol)
                 self.share_price_label.config(text=f"Current Price: {stock_price}")
+            else:
+                self.share_price_label.config(text="Stock price not available")
 
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to fetch stock price: {str(e)}")
-
+            messagebox.showerror("Error", f"Failed to update stock price: {str(e)}")
 
     def place_order(self):
         """
         Handles placing an order and updates UI accordingly.
+        Runs in a loop so the user can place multiple orders.
         """
         try:
-            order = self.order_entry.get().strip()
-            stock_symbol = self.stock_combobox.get().strip()
-            if not order or not stock_symbol:
-                messagebox.showerror("Error", "Order and stock symbol cannot be empty")
-                return
+            while True:
+                order = self.order_entry.get().strip()
+                stock_symbol = self.stock_combobox.get().strip()
 
-            print(f"📢 Placing order: {order} for stock: {stock_symbol}")
+                # Prevent placing an order with the placeholder
+                if stock_symbol == "-- Select a Stock --":
+                    messagebox.showerror("Error", "Please select a valid stock before placing an order.")
+                    return
 
-            self.client.client_socket.send(self.client.e.encrypt_data(order, self.client.server_public_key))
-            response = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+                if not order:
+                    messagebox.showerror("Error", "Order cannot be empty")
+                    return
 
-            print(f"📢 Server response for order: {response}")
+                print(f"📢 Placing order: {order} for stock: {stock_symbol}")
 
-            if "Error" in response:
-                messagebox.showerror("Order Failed", response)
-            else:
-                messagebox.showinfo("Order Success", response)
-                self.balance_label.config(text=f"Balance: {self.fetch_balance():.2f}")
+                # Send the order to the server
+                self.client.client_socket.send(self.client.e.encrypt_data(order, self.client.server_public_key))
+                
+                # Wait for order confirmation
+                order_confirmation = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+                print(f"📢 Order confirmation: {order_confirmation}")
+                
+                # Wait for transaction result
+                transaction_result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+                print(f"📢 Transaction result: {transaction_result}")
+                
+                if "Error" in transaction_result:
+                    messagebox.showerror("Order Failed", transaction_result)
+                    return  # Stop the loop if the order fails
+
+                else:                    
+                    # messagebox.showinfo("Order Success", transaction_result)
+                    
+                    # Get updated share price from server
+                    updated_price = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+                    print(updated_price)
+
+                    self.stocks_and_prices[stock_symbol] = int(updated_price)
+
+                    # Show a message window with the updated price
+                    messagebox.showinfo("Price Update", f"New price for {stock_symbol}: {updated_price}")
+                    
+                    # Update the displayed price
+                    self.share_price_label.config(text=f"Current Price: {updated_price}")
+                    
+                    # Clear the order entry field
+                    self.order_entry.delete(0, tk.END)
+                    
+                    # Get and display updated balance
+                    try:
+                        new_balance = transaction_result.split(":")[-1].strip()
+                        self.balance_label.config(text=new_balance)
+                    except Exception as balance_error:
+                        print(f"Error updating balance display: {balance_error}")
+
+                # Ask if the user wants to place another order
+                repeat_order = messagebox.askyesno("Next Order", "Would you like to place another order?")
+                if not repeat_order:
+                    break  # Exit loop if the user declines
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to place order: {str(e)}")
