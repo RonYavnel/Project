@@ -243,68 +243,141 @@ class ClientUI:
         Runs in a loop so the user can place multiple orders.
         """
         try:
-            while True:
-                order = self.order_entry.get().strip()
-                stock_symbol = self.stock_combobox.get().strip()
+            order = self.order_entry.get().strip()
+            stock_symbol = self.stock_combobox.get().strip()
 
-                # Prevent placing an order with the placeholder
-                if stock_symbol == "-- Select a Stock --":
-                    messagebox.showerror("Error", "Please select a valid stock before placing an order.")
-                    return
+            # Prevent placing an order with the placeholder
+            if stock_symbol == "-- Select a Stock --":
+                messagebox.showerror("Error", "Please select a valid stock before placing an order.")
+                return
 
-                if not order:
-                    messagebox.showerror("Error", "Order cannot be empty")
-                    return
+            if not order:
+                messagebox.showerror("Error", "Order cannot be empty")
+                return
 
-                print(f"📢 Placing order: {order} for stock: {stock_symbol}")
+            print(f"📢 Placing order: {order} for stock: {stock_symbol}")
 
-                # Send the order to the server
-                self.client.client_socket.send(self.client.e.encrypt_data(order, self.client.server_public_key))
+            # Send the order to the server
+            self.client.client_socket.send(self.client.e.encrypt_data(order, self.client.server_public_key))
+            
+            # Wait for order confirmation
+            order_confirmation = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+            print(f"📢 Order confirmation: {order_confirmation}")
+            
+            # Wait for transaction result
+            transaction_result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+            print(f"📢 Transaction result: {transaction_result}")
+            
+            if "Error" in transaction_result:
+                messagebox.showerror("Order Failed", transaction_result)
+                return  # Stop if the order fails
+            else:                    
+                # Get updated share price from server
+                updated_price = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+                print(updated_price)
+
+                self.stocks_and_prices[stock_symbol] = int(updated_price)
+
+                # Show a message window with the updated price
+                messagebox.showinfo("Price Update", f"New price for {stock_symbol}: {updated_price}")
                 
-                # Wait for order confirmation
-                order_confirmation = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
-                print(f"📢 Order confirmation: {order_confirmation}")
+                # Update the displayed price
+                self.share_price_label.config(text=f"Current Price: {updated_price}")
                 
-                # Wait for transaction result
-                transaction_result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
-                print(f"📢 Transaction result: {transaction_result}")
+                # Clear the order entry field
+                self.order_entry.delete(0, tk.END)
                 
-                if "Error" in transaction_result:
-                    messagebox.showerror("Order Failed", transaction_result)
-                    return  # Stop the loop if the order fails
+                # Get and display updated balance
+                try:
+                    new_balance = transaction_result.split(":")[-1].strip()
+                    self.balance_label.config(text=new_balance)
+                except Exception as balance_error:
+                    print(f"Error updating balance display: {balance_error}")
 
-                else:                    
-                    # messagebox.showinfo("Order Success", transaction_result)
-                    
-                    # Get updated share price from server
-                    updated_price = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
-                    print(updated_price)
-
-                    self.stocks_and_prices[stock_symbol] = int(updated_price)
-
-                    # Show a message window with the updated price
-                    messagebox.showinfo("Price Update", f"New price for {stock_symbol}: {updated_price}")
-                    
-                    # Update the displayed price
-                    self.share_price_label.config(text=f"Current Price: {updated_price}")
-                    
-                    # Clear the order entry field
-                    self.order_entry.delete(0, tk.END)
-                    
-                    # Get and display updated balance
-                    try:
-                        new_balance = transaction_result.split(":")[-1].strip()
-                        self.balance_label.config(text=new_balance)
-                    except Exception as balance_error:
-                        print(f"Error updating balance display: {balance_error}")
-
-                # Ask if the user wants to place another order
-                repeat_order = messagebox.askyesno("Next Order", "Would you like to place another order?")
-                if not repeat_order:
-                    break  # Exit loop if the user declines
+            # Ask if the user wants to place another order
+            repeat_order = messagebox.askyesno("Next Order", "Would you like to place another order?")
+            if not repeat_order:
+                # User doesn't want to place another order, fade out and exit
+                self.fade_out_and_exit()
+            else:
+                # User wants to place another order, reset to stock selection
+                self.reset_to_stock_selection()
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to place order: {str(e)}")
+
+    def reset_to_stock_selection(self):
+        """
+        Reset the UI to the stock selection state.
+        Reconnects to server to get fresh stock data.
+        """
+        try:
+            # Hide the order input controls
+            self.order_label.grid_remove()
+            self.order_entry.grid_remove()
+            self.order_button.grid_remove()
+            
+            # Clear the previous stock selection
+            self.stock_combobox.set("-- Select a Stock --")
+            self.share_price_label.config(text="Select a stock")
+            
+            # Instead of trying to reconnect with username/password
+            # Just send a special command to the server to reset the stock selection
+            try:
+                # Get fresh stock data
+                self.update_stocks()
+            except Exception as conn_error:
+                messagebox.showerror("Connection Error", f"Failed to refresh stock data: {str(conn_error)}")
+                
+        except Exception as e:
+            messagebox.showerror("Reset Error", f"Failed to reset stock selection: {str(e)}")
+            
+
+    def fade_out_and_exit(self):
+        """
+        Fades out the UI before exiting, ensuring the logo remains centered with a 2-second delay.
+        """
+        
+        self.play_intro_sound()
+        
+        # Create a fullscreen frame to cover the entire window
+        fade_frame = tk.Frame(self.root, bg="#f0f8ff")
+        fade_frame.place(relx=0, rely=0, relwidth=1, relheight=1)
+
+        # Load and resize the logo image
+        original_image = Image.open("nExchange_logo.png").convert("RGBA")
+        resized_image = original_image.resize((768, 503), Image.Resampling.LANCZOS)
+        logo_image = resized_image.copy()
+
+        tk_image = ImageTk.PhotoImage(logo_image)
+        logo_label = tk.Label(fade_frame, image=tk_image, bg="#f0f8ff")
+        logo_label.image = tk_image
+
+        # Place the label in the center
+        logo_label.place(relx=0.5, rely=0.5, anchor="center")
+
+        def start_fade():
+            """Starts the fade-out effect after the delay."""
+            alpha = 255  # Start with full opacity
+
+            def step_fade():
+                nonlocal alpha
+                alpha -= 6
+                if alpha <= 0:
+                    self.root.quit()  # Exit the application after fade-out
+                else:
+                    faded_image = logo_image.copy()
+                    faded_image.putalpha(alpha)
+                    tk_faded = ImageTk.PhotoImage(faded_image)
+                    logo_label.config(image=tk_faded)
+                    logo_label.image = tk_faded
+                    fade_frame.after(50, step_fade)  # Schedule the next fade step
+
+            step_fade()  # Start the fade-out process
+
+        # Delay the fade-out by 2 seconds before starting
+        self.root.after(2000, start_fade)
+
 
 
 if __name__ == "__main__":
