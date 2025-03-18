@@ -51,7 +51,7 @@ class Server:
 
     def initialize_database(self):
         # Initiate the connection with the sql server
-        my_sql_server = self.tls.init()
+        my_sql_server = self.tls.init_without_db()
         # Create a new database and connect to it
         self.tls.create_new_database(my_sql_server, "stocktradingdb")
         self.mydb = self.tls.init_with_db("stocktradingdb")

@@ -8,7 +8,7 @@ class DB_Tools:
         self.password = password
 
     # Initiate a connection with server without database
-    def init(self):
+    def init_without_db(self):
         mydb = mysql.connector.connect(
             host=self.host,
             user=self.user,
@@ -90,6 +90,7 @@ class DB_Tools:
         else:
             print("No column name with name " + tableName)
 
+    # Function to pull user_id by ip and port
     def get_user_id_by_ip_and_port(self, mydb, ip, port):
         mycursor = mydb.cursor()
         sql = "SELECT user_id FROM users WHERE ip = %s AND port = %s"
@@ -107,6 +108,7 @@ class DB_Tools:
             rows.append(i)
         return rows
 
+    # Function that returns all the values of a specific column in a table
     def get_all_column_values(self, mydb, tableName, columnName):
         mycursor = mydb.cursor()
         sql = "SELECT " + columnName + " FROM " + tableName
@@ -136,7 +138,6 @@ class DB_Tools:
         cursor.close()
         return result[0]
 
-    # Ron's adding
     # Abstract function for handling "fetchone" type sql query functions with one parameter
     def fetchone_functions_one_param(self, mydb, query, param):
         return self.fetchone_functions_tuple(mydb, query, (param,))
