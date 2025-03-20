@@ -20,7 +20,7 @@ class ClientUI:
         self.client = client
         self.stock_selected = False
 
-        self.root.title("Stock Trading Client")
+        self.root.title("nExchange Client")
         self.root.geometry(f"{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}")
         self.root.resizable(False, False)
         self.root.state("zoomed")
@@ -114,6 +114,7 @@ class ClientUI:
         self.root.after(2000, lambda: self.fade_out_logo(logo_image, logo_label, logo_frame, next_screen_callback))
 
     def create_login_frame(self):
+        """Creates the login frame with vertically stacked elements"""
         # Create a container frame
         container = ttk.Frame(self.root, padding=20)
         container.place(relx=0.5, rely=0.5, anchor="center")
@@ -122,51 +123,65 @@ class ClientUI:
         logo_image = tk.PhotoImage(file="nExchange_logo_icon.png")
         logo_label = tk.Label(container, image=logo_image, bg=BG_COLOR)
         logo_label.image = logo_image  # Keep a reference to prevent garbage collection
-        logo_label.grid(row=0, column=0, columnspan=2, pady=(0, 10))
+        logo_label.pack(pady=(0, 10))
         
         # Add main title
-        title_label = tk.Label(container, text="Welcome to nExchange!", font=("Helvetica", 24, "bold"), bg=BG_COLOR)
-        title_label.grid(row=1, column=0, columnspan=2, pady=(0, 20))
+        title_label = tk.Label(container, 
+                            text="Welcome to nExchange!", 
+                            font=("Helvetica", 24, "bold"), 
+                            bg=BG_COLOR)
+        title_label.pack(pady=(0, 20))
         
-        # Subtitle container frame for side-by-side subtitles
+        # Subtitle container frame for vertical subtitles
         subtitle_frame = ttk.Frame(container)
-        subtitle_frame.grid(row=2, column=0, columnspan=2, pady=(0, 15))
+        subtitle_frame.pack(pady=(0, 15))
         
-        # Login subtitle (in green) - left side
-        login_subtitle = tk.Label(subtitle_frame, text="Already registered? Log in!", 
+        # Login subtitle (in green) - first line
+        login_subtitle = tk.Label(subtitle_frame, 
+                                text="Already registered? Log in!", 
                                 font=("Helvetica", 16, "bold"), 
                                 bg=BG_COLOR, 
                                 fg="green")
-        login_subtitle.grid(row=0, column=0, padx=(0, 20))
+        login_subtitle.pack(pady=(0, 10))
         
-        # Signup subtitle (in green) - right side
-        signup_subtitle = tk.Label(subtitle_frame, text="New to our system? Feel free to sign up!", 
+        # Signup subtitle (in green) - second line
+        signup_subtitle = tk.Label(subtitle_frame, 
+                                text="New to our system? Feel free to sign up!", 
                                 font=("Helvetica", 16, "bold"), 
                                 bg=BG_COLOR, 
                                 fg="green")
-        signup_subtitle.grid(row=0, column=1, padx=(20, 0))
+        signup_subtitle.pack()
         
         # Login frame and fields
         self.login_frame = ttk.Frame(container, padding=20)
-        self.login_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.login_frame.pack(pady=20)
         
         # Username field
-        ttk.Label(self.login_frame, text="Username:", font=FONT).grid(row=0, column=0, sticky=tk.W, pady=10)
-        self.username_entry = ttk.Entry(self.login_frame, width=30, font=FONT)
-        self.username_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=10)
+        username_container = ttk.Frame(self.login_frame)
+        username_container.pack(fill="x", pady=10)
+        ttk.Label(username_container, text="Username:", font=FONT).pack(side="left")
+        self.username_entry = ttk.Entry(username_container, width=30, font=FONT)
+        self.username_entry.pack(side="right", padx=10)
         
         # Password field
-        ttk.Label(self.login_frame, text="Password:", font=FONT).grid(row=1, column=0, sticky=tk.W, pady=10)
-        self.password_entry = ttk.Entry(self.login_frame, show="*", width=30, font=FONT)
-        self.password_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=10)
+        password_container = ttk.Frame(self.login_frame)
+        password_container.pack(fill="x", pady=10)
+        ttk.Label(password_container, text="Password:", font=FONT).pack(side="left")
+        self.password_entry = ttk.Entry(password_container, show="*", width=30, font=FONT)
+        self.password_entry.pack(side="right", padx=10)
         
         # Login button
-        self.login_button = ttk.Button(self.login_frame, text="Login", command=self.login, style="TButton", width=20)
-        self.login_button.grid(row=2, column=0, columnspan=2, pady=20)
+        self.login_button = ttk.Button(self.login_frame, 
+                                    text="Login", 
+                                    command=self.login, 
+                                    style="TButton", 
+                                    width=20)
+        self.login_button.pack(pady=20)
         
         # Bind Enter key to login
-        self.root.bind('<Return>', lambda event: self.login())
-
+        self.login_binding = self.root.bind('<Return>', lambda event: self.login())
+    
+    
     def create_main_frame(self, balance):
         # Destroy the login frame completely
         for widget in self.root.winfo_children():
@@ -206,7 +221,7 @@ class ClientUI:
                                 font=("Helvetica", 16, "bold"), bg=BG_COLOR)
         balance_label.pack(side=tk.LEFT, padx=10)
         
-        self.balance_label = tk.Label(balance_frame, text=balance, 
+        self.balance_label = tk.Label(balance_frame, text=f"{balance}$", 
                                      font=("Helvetica", 16), bg=BG_COLOR)
         self.balance_label.pack(side=tk.LEFT)
 
@@ -285,36 +300,52 @@ class ClientUI:
         self.order_entry.grid()
         self.order_button.grid()
         self.help_label.grid()
+        self.order_entry.bind('<Return>', lambda event: self.place_order())
 
-    def login(self):
-        username = self.username_entry.get()
-        password = self.password_entry.get()
-        if not username or not password:
-            messagebox.showerror("Error", "Please enter both username and password")
-            return
-
+    def login(self, event=None):  # Add event parameter to handle both button and key binding
+        """Handle login process and transition to main frame"""
         try:
+            # Unbind Return key to prevent errors after frame destruction
+            if hasattr(self, 'login_binding'):
+                self.root.unbind('<Return>', self.login_binding)
+
+            # Get credentials
+            username = self.username_entry.get()
+            password = self.password_entry.get()
+            
+            if not username or not password:
+                messagebox.showerror("Error", "Please enter both username and password")
+                return
+
+            # Connect to server
             self.client.client_socket = socket.socket()
             self.client.client_socket.connect((self.client.host, self.client.port))
 
+            # Send credentials
             self.client.client_socket.send(self.client.e.encrypt_data(username, self.client.server_public_key))
             time.sleep(0.1)
             self.client.client_socket.send(self.client.e.encrypt_data(password, self.client.server_public_key))
 
-            result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+            # Get server response
+            result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
+                                            self.client.client_private_key)
 
             if result == '2':
                 messagebox.showerror("Error", "Username already exists. Please enter a new one.")
                 return
 
+            # Get balance
             balance = self.fetch_balance()
 
+            # Show welcome message
             if result == '1':
                 messagebox.showinfo("Welcome", f"Welcome back {username}!")
             else:
                 messagebox.showinfo("Welcome", "Nice to meet you! You are now registered.")
 
+            # Create main trading frame
             self.create_main_frame(balance)
+
         except Exception as e:
             messagebox.showerror("Connection Error", f"Failed to connect to server: {str(e)}")
 
@@ -324,16 +355,65 @@ class ClientUI:
             
             if response == "1":
                 balance = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
-                return balance  
+                return balance
             elif response == "0":
-                new_balance = simpledialog.askinteger("New User", "Enter your starting balance:",
-                                                     parent=self.root,
-                                                     minvalue=0,
-                                                     maxvalue=1000000)
-                if new_balance is not None:
-                    self.client.client_socket.send(self.client.e.encrypt_data(str(int(new_balance)), self.client.server_public_key))
-                    return new_balance
-            return 0  
+                # Create a modal dialog window
+                dialog = tk.Toplevel(self.root)
+                dialog.title("Set Initial Balance")
+                dialog.configure(bg=BG_COLOR)
+                
+                # Make it modal
+                dialog.transient(self.root)
+                dialog.grab_set()
+                
+                # Prevent closing the window
+                dialog.protocol("WM_DELETE_WINDOW", lambda: None)
+                
+                # Center the window
+                window_width = 300
+                window_height = 200
+                screen_width = dialog.winfo_screenwidth()
+                screen_height = dialog.winfo_screenheight()
+                x = (screen_width - window_width) // 2
+                y = (screen_height - window_height) // 2
+                dialog.geometry(f"{window_width}x{window_height}+{x}+{y}")
+                
+                # Add widgets
+                tk.Label(dialog, text="Enter your starting balance:", font=FONT, bg=BG_COLOR).pack(pady=20)
+                entry = ttk.Entry(dialog, font=FONT, justify="center")
+                entry.pack(pady=10)
+                entry.focus_set()
+                
+                # Result variable
+                result = [None]
+                
+                def validate():
+                    try:
+                        value = int(entry.get())
+                        if 0 < value <= 1000000:
+                            result[0] = value
+                            dialog.destroy()
+                        else:
+                            entry.delete(0, tk.END)
+                            messagebox.showerror("Error", "Please enter a value between 1 and 1,000,000")
+                    except ValueError:
+                        entry.delete(0, tk.END)
+                        messagebox.showerror("Error", "Please enter a valid number")
+                
+                ttk.Button(dialog, text="Confirm", command=validate).pack(pady=10)
+                entry.bind('<Return>', lambda e: validate())
+                
+                # Wait for input
+                dialog.wait_window()
+                
+                if result[0]:
+                    self.client.client_socket.send(
+                        self.client.e.encrypt_data(str(result[0]), self.client.server_public_key)
+                    )
+                    return result[0]
+                return 0
+                
+            return 0
         except Exception as e:
             messagebox.showerror("Error", f"Failed to fetch balance: {str(e)}")
             return 0
@@ -385,7 +465,7 @@ class ClientUI:
             # Get price from the cached data
             if stock_symbol in self.stocks_and_prices:
                 stock_price = self.stocks_and_prices.get(stock_symbol)
-                self.share_price_label.config(text=f"${stock_price}")
+                self.share_price_label.config(text=f"{stock_price}$")
             else:
                 self.share_price_label.config(text="Stock price not available")
 
@@ -399,7 +479,7 @@ class ClientUI:
         """
         if self.stock_selected:
             messagebox.showinfo("Stock Already Selected", 
-                             "You've already selected a stock. To select a different stock, place your order first or restart the application.")
+                            "You've already selected a stock. To select a different stock, place your order first or restart the application.")
             return
             
         try:
@@ -426,19 +506,28 @@ class ClientUI:
             # Show order section after successful selection
             self.show_order_section()
                     
-            # Add flashing effect to highlight order section
-            self.flash_widget(self.order_entry, 5)
+            # Focus on the order entry field and flash it
+            self.order_entry.focus_set()
+            self.flash_widget(self.order_entry, 3)
 
         except Exception as e:
             self.handle_error(f"Failed to confirm stock: {str(e)}")
             
     def flash_widget(self, widget, times=3):
-        """Creates a flashing highlight effect for a widget"""
+        """Creates a flashing highlight effect for a widget that stops on focus or click"""
         orig_bg = widget["background"] if "background" in widget.keys() else ""
         orig_fg = widget["foreground"] if "foreground" in widget.keys() else ""
         
+        # Flag to track if flashing should continue
+        widget.flashing = True
+        
+        def stop_flashing(event=None):
+            if hasattr(widget, 'flashing'):
+                widget.flashing = False
+                widget.configure(background=orig_bg, foreground=orig_fg)
+        
         def flash_cycle(count=0):
-            if count >= times * 2:  # Number of flashes * 2 (on/off)
+            if not hasattr(widget, 'flashing') or not widget.flashing or count >= times * 2:
                 widget.configure(background=orig_bg, foreground=orig_fg)
                 return
                 
@@ -448,89 +537,164 @@ class ClientUI:
                 widget.configure(background=orig_bg, foreground=orig_fg)
                 
             widget.after(300, lambda: flash_cycle(count + 1))
-            
+        
+        # Bind focus and click events to stop flashing
+        widget.bind('<FocusIn>', stop_flashing)
+        widget.bind('<Button-1>', stop_flashing)
+        
+        if isinstance(widget, ttk.Combobox):
+            widget.bind('<<ComboboxSelected>>', stop_flashing)
+        
+        # Start the flashing
         flash_cycle()
-
+    
+    def show_loading_bar(self, order):
+        """Shows a loading bar for 1 second before completing the order"""
+        # Create loading window
+        loading_window = tk.Toplevel(self.root)
+        loading_window.title("Processing Order")
+        loading_window.geometry("300x150")
+        loading_window.configure(bg=BG_COLOR)
+        
+        # Center the window
+        window_width = 300
+        window_height = 150
+        screen_width = loading_window.winfo_screenwidth()
+        screen_height = loading_window.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        loading_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # Make it modal
+        loading_window.transient(self.root)
+        loading_window.grab_set()
+        
+        # Add loading message
+        message = tk.Label(loading_window, 
+                        text="Processing your order...", 
+                        font=("Helvetica", 12),
+                        bg=BG_COLOR)
+        message.pack(pady=20)
+        
+        # Create progressbar
+        progress = ttk.Progressbar(loading_window, 
+                                length=200, 
+                                mode='determinate')
+        progress.pack(pady=10)
+        
+        def update_progress(count=0):
+            progress['value'] = count
+            if count < 100:
+                loading_window.after(20, update_progress, count + 2)
+            else:
+                loading_window.destroy()
+                self.complete_order(order)
+        
+        # Start progress bar
+        update_progress()
+    
+    
     def place_order(self):
-        """
-        Handles placing an order and updates UI accordingly.
-        """
+        """Handles placing an order and updates UI accordingly."""
         if not self.stock_selected:
             messagebox.showerror("Error", "Please select a stock first")
             return
 
-        order = self.order_entry.get().strip()
-        stock_symbol = self.selected_stock
+        try:
+            # Validate order
+            order = self.order_entry.get().strip()
+            if not order or '$' not in order:
+                messagebox.showerror("Error", "Invalid order format. Use 'side$amount' (e.g., B$10 or S$5)")
+                return
 
-        if not order:
-            messagebox.showerror("Error", "Order cannot be empty")
-            return
+            side, amount = order.split('$')
+            if side.upper() not in ['B', 'S']:
+                messagebox.showerror("Error", "Invalid side. Use 'B' for buy or 'S' for sell")
+                return
 
-        print(f"Placing order: {order} for stock: {stock_symbol}")
-
-        # Send the order to the server
-        self.client.client_socket.send(self.client.e.encrypt_data(order, self.client.server_public_key))
-
-        # Wait for order confirmation
-        order_confirmation = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
-        print(f"Order confirmation: {order_confirmation}")
-
-        # Wait for transaction result
-        transaction_result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
-        print(f"Transaction result: {transaction_result}")
-
-        if "Error" in transaction_result:
-            messagebox.showerror("Order Failed", transaction_result)
-            return  # Stop if the order fails
-        else:
             try:
-                # Get updated share price from server
-                updated_price = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
-                print(f"Updated price: {updated_price}")
+                amount = int(amount)
+                if amount <= 0:
+                    messagebox.showerror("Error", "Amount must be greater than 0")
+                    return
+            except ValueError:
+                messagebox.showerror("Error", "Amount must be a valid number")
+                return
 
-                # Try to parse the updated price as an integer
-                try:
-                    price_as_int = int(updated_price)
-                    self.stocks_and_prices[stock_symbol] = price_as_int
-                    self.share_price_label.config(text=f"${price_as_int}")
-                except ValueError:
-                    if stock_symbol in self.stocks_and_prices:
-                        price = self.stocks_and_prices[stock_symbol]
-                        self.share_price_label.config(text=f"${price}")
-                    else:
-                        self.share_price_label.config(text="Price unavailable")
+            # Show loading bar and process order
+            self.show_loading_bar(order)
 
-            except Exception as e:
-                print(f"Error receiving updated price: {str(e)}")
-
-            # Clear the order entry field
+        except Exception as e:
+            messagebox.showerror("System Error", f"An unexpected error occurred: {str(e)}")
+            print(f"Unexpected error in place_order: {str(e)}")
             self.order_entry.delete(0, tk.END)
 
-            # Get and display updated balance
+    def complete_order(self, order):
+        """Completes the order process after loading animation"""
+        try:
+            # Clear any pending messages from the socket
+            self.client.client_socket.settimeout(0.1)
             try:
-                if ":" in transaction_result:
-                    new_balance = transaction_result.split(":")[-1].strip()
-                    self.balance_label.config(text=f"${new_balance}")  # Ensure balance label updates
-                    print(f"Updated Balance: {new_balance}")
+                while True:
+                    self.client.client_socket.recv(4096)
+            except socket.timeout:
+                pass
+            self.client.client_socket.settimeout(None)
 
-                    # Ensure balance label is always visible
-                    self.balance_label.update_idletasks()
-                    self.balance_label.pack()  # Ensure it stays in the layout
-                    
-                    # Flash the balance label to highlight the change
-                    self.flash_widget(self.balance_label, 3)
+            # Send the order
+            self.client.client_socket.send(self.client.e.encrypt_data(order, self.client.server_public_key))
 
-            except Exception as balance_error:
-                print(f"Error updating balance display: {balance_error}")
+            # Wait for order confirmation
+            order_confirmation = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
+                                                        self.client.client_private_key)
+            
+            if order_confirmation != "Order received":
+                messagebox.showerror("Order Error", order_confirmation)
+                return
 
-            # Show confirmation window
-            self.show_transaction_confirmation(stock_symbol, order, 
-                                            self.stocks_and_prices.get(stock_symbol, "N/A"), 
-                                            transaction_result)
+            # Wait for transaction result
+            transaction_result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
+                                                        self.client.client_private_key)
 
-            # Ask for another order
+            if "Error" in transaction_result:
+                messagebox.showerror("Transaction Failed", transaction_result)
+                return
+
+            # Update balance if transaction successful
+            if ":" in transaction_result:
+                new_balance = transaction_result.split(":")[-1].strip()
+                self.balance_label.config(text=f"{new_balance}$")
+                self.flash_widget(self.balance_label, 3)
+
+            # Get updated price
+            updated_price = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
+                                                    self.client.client_private_key)
+
+            try:
+                if not isinstance(ast.literal_eval(updated_price), dict):
+                    price_as_int = int(updated_price)
+                    self.stocks_and_prices[self.selected_stock] = price_as_int
+                    self.share_price_label.config(text=f"{price_as_int}$")
+            except (ValueError, SyntaxError) as e:
+                print(f"Error processing updated price: {e}")
+
+            # Clear the order entry
+            self.order_entry.delete(0, tk.END)
+
+            # Show confirmation and ask for another order
+            self.show_transaction_confirmation(
+                self.selected_stock,
+                order,
+                self.stocks_and_prices.get(self.selected_stock, "N/A"),
+                transaction_result
+            )
             self.ask_for_another_order()
 
+        except Exception as e:
+            messagebox.showerror("System Error", f"An unexpected error occurred: {str(e)}")
+            print(f"Unexpected error in complete_order: {str(e)}")
+            self.order_entry.delete(0, tk.END)
+        
     def show_transaction_confirmation(self, stock_symbol, order, updated_price, transaction_result):
         """
         Shows a modal transaction confirmation dialog.
@@ -568,12 +732,12 @@ class ClientUI:
         side, quantity = order.split('$')
         tk.Label(details_frame, text=f"Side: {side}", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
         tk.Label(details_frame, text=f"Quantity: {quantity}", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
-        tk.Label(details_frame, text=f"New Price: ${updated_price}", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
+        tk.Label(details_frame, text=f"New Price: {updated_price}$", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
         
         # Extract new balance from transaction result if available
         if ":" in transaction_result:
             new_balance = transaction_result.split(":")[-1].strip()
-            tk.Label(details_frame, text=f"New Balance: {new_balance}", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
+            tk.Label(details_frame, text=f"New Balance: {new_balance}$", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
         
         # Add an OK button
         ok_button = ttk.Button(confirm_window, text="OK", command=confirm_window.destroy)
@@ -603,8 +767,8 @@ class ClientUI:
         else:
             # Reset the stock selection to start the process again
             self.reset_stock_selection()
-            # Flash the stock combobox to guide the user
-            self.flash_widget(self.stock_combobox, 3)
+            # Set focus to combobox without flashing
+            self.stock_combobox.focus_set()
         
     def fade_out_and_exit(self):
         """
@@ -632,7 +796,7 @@ class ClientUI:
         # Thank you message
         thank_you_label = tk.Label(fade_frame, text="Thank you for using nExchange!",
                                   font=("Helvetica", 20, "bold"), bg=BG_COLOR)
-        thank_you_label.place(relx=0.5, rely=0.8, anchor="center")
+        thank_you_label.place(relx=0.5, rely=0.2, anchor="center")
 
         def start_fade():
             """Starts the fade-out effect after the delay."""
