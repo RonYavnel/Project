@@ -323,7 +323,7 @@ class ClientUI:
 
             # Send credentials
             self.client.client_socket.send(self.client.e.encrypt_data(username, self.client.server_public_key))
-            time.sleep(0.1)
+            time.sleep(0.5)
             self.client.client_socket.send(self.client.e.encrypt_data(password, self.client.server_public_key))
 
             # Get server response
@@ -795,8 +795,8 @@ class ClientUI:
         
         # Thank you message
         thank_you_label = tk.Label(fade_frame, text="Thank you for using nExchange!",
-                                  font=("Helvetica", 20, "bold"), bg=BG_COLOR)
-        thank_you_label.place(relx=0.5, rely=0.2, anchor="center")
+                                  font=("Helvetica", 20, "bold"), bg=BG_COLOR, fg="#feb236")
+        thank_you_label.place(relx=0.5, rely=0.13, anchor="center")
 
         def start_fade():
             """Starts the fade-out effect after the delay."""
@@ -813,11 +813,6 @@ class ClientUI:
                     tk_faded = ImageTk.PhotoImage(faded_image)
                     logo_label.config(image=tk_faded)
                     logo_label.image = tk_faded
-                    
-                    # Also fade out the thank you message
-                    fade_color = int(255 - ((255 - alpha) / 255 * 244)) # Background color component
-                    text_color = f"#{fade_color:02x}{fade_color:02x}{fade_color:02x}"
-                    thank_you_label.config(fg=text_color)
                     
                     fade_frame.after(50, step_fade)  # Schedule the next fade step
 

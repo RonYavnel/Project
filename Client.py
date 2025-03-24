@@ -99,7 +99,6 @@ class Client:
             print(f"Current share price: {share_price}")
 
             while True:
-                print("before order")
                 order = self.general_input("Enter your order (side$amount): ", "")
 
                 self.client_socket.send(self.e.encrypt_data(order, self.server_public_key))

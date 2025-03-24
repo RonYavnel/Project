@@ -20,7 +20,7 @@ class ServerUI:
         self.stock_graph_windows = {}  # To store graph windows for each stock
         self.connected_clients_tree = None # To store the connected clients table
         self.transactions_tree = None # To store the transactions table
-        self.tls = DB_Tools()
+        self.tls = DB_Tools("stocktradingdb")  # Initialize the database tools
         self.on_close_callback = on_close_callback  # Callback to stop the server
 
     def show_logo_and_transition(self, root, next_screen_callback):
@@ -163,7 +163,7 @@ class ServerUI:
 
 
 
-    def show_transactions(self, root, mydb):
+    def show_transactions(self, root):
         # Add a title "Transactions" above the table.
         transactions_label = Label(root, text="Transactions", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
         transactions_label.pack(anchor="n", pady=10)
@@ -184,7 +184,7 @@ class ServerUI:
             tree.column(col, width=100, anchor="center")
 
         # Fetch transactions from the database and add them to the table.
-        list_of_transactions = self.tls.get_all_rows(mydb, "transactions")
+        list_of_transactions = self.tls.get_all_rows("transactions")
         for transaction in list_of_transactions:
             tree.insert("", "end", values=transaction)
             tree.see(tree.get_children()[-1])  # Auto-scroll to the latest transaction.
@@ -255,7 +255,7 @@ class ServerUI:
         for ip, port, username in connected_clients_list:
             self.connected_clients_tree.insert("", "end", values=(ip, port, username))
 
-    def refresh_transactions_table(self, mydb):
+    def refresh_transactions_table(self):
         
         # Refreshes the transactions table.
         
@@ -264,7 +264,7 @@ class ServerUI:
             self.transactions_tree.delete(item)
 
         # Fetch updated transactions from the database
-        updated_transactions = self.tls.get_all_rows(mydb, "transactions")
+        updated_transactions = self.tls.get_all_rows("transactions")
 
         # Populate the table with updated transactions
         for transaction in updated_transactions:
@@ -292,7 +292,7 @@ class ServerUI:
     
     
     # Function to show the combined UI            
-    def show_combined_ui(self, mydb, dict_of_connected_people, stocks, stock_prices_history):
+    def show_combined_ui(self, dict_of_connected_people, stocks, stock_prices_history):
         import ctypes # For changing the taskbar icon
 
         root = Tk("nExchange Dashboard")
@@ -319,7 +319,7 @@ class ServerUI:
         def initialize_ui():
             # Create the connected clients and transactions tables
             self.connected_clients_tree = self.show_connected_people(root, dict_of_connected_people)
-            self.transactions_tree = self.show_transactions(root, mydb)
+            self.transactions_tree = self.show_transactions(root)
 
             # Initialize references
             self.initialize_ui_references(self.connected_clients_tree, self.transactions_tree)
@@ -356,4 +356,4 @@ if __name__ == "__main__":
     }
 
     server_ui = ServerUI()
-    server_ui.show_combined_ui(mydb, dict_of_connected_people, stocks, stock_prices_history)
+    server_ui.show_combined_ui(dict_of_connected_people, stocks, stock_prices_history)

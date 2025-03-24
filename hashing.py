@@ -1,7 +1,7 @@
 import bcrypt
 from db_tools import DB_Tools
 
-tls = DB_Tools()
+tls = DB_Tools("stocktradingdb")
 
 # Function to hash a password
 def hash_password(password):
@@ -23,4 +23,4 @@ def delete_all_rows_in_table(mydb, tableName):
     mydb.commit()
     
 mydb = tls.init_with_db("stocktradingdb")
-delete_all_rows_in_table(mydb, "users")
+delete_row_in_table_with_specific_value(mydb, "users", "username", "maria")

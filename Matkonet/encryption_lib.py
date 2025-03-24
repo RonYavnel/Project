@@ -14,7 +14,7 @@ class Encryption:
         self.client_private_key_file = client_private_key_file
         self.client_public_key_file = client_public_key_file
 
-    # Function to hash data
+    # Function to hash data using sha256 (so that the hash uses non-time based salt)
     def hash_data(self, data):
         return hashlib.sha256(data.encode()).hexdigest()
     
