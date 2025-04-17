@@ -576,19 +576,29 @@ class ClientUI:
                         bg=BG_COLOR)
         message.pack(pady=20)
         
-        # Create progressbar
+        # Configure style for the progressbar
+        style = ttk.Style()
+        style.configure("Custom.Horizontal.TProgressbar", 
+                    troughcolor='#E0E0E0',     # Background color
+                    background='#4682b4',       # Bar color (steel blue)
+                    darkcolor='#4682b4',        # Dark portion of the bar
+                    lightcolor='#5294c4')       # Light portion of the bar
+        
+        # Create progressbar with custom style
         progress = ttk.Progressbar(loading_window, 
-                                length=200, 
-                                mode='determinate')
+                                length=200,
+                                mode='determinate',
+                                style="Custom.Horizontal.TProgressbar")
         progress.pack(pady=10)
         
         def update_progress(count=0):
             progress['value'] = count
-            if count < 100:
+            if count < 98:  # Reduced from 100 to 98
                 loading_window.after(20, update_progress, count + 2)
-            else:
-                loading_window.destroy()
-                self.complete_order(order)
+            elif count == 98:  # Start order completion at 98%
+                self.complete_order(order)  # Complete the order
+                progress['value'] = 100     # Show full progress
+                loading_window.destroy()     # Close the loading window immediately
         
         # Start progress bar
         update_progress()

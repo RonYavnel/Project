@@ -18,7 +18,7 @@ class Server_Lib:
             username = self.e.decrypt_data(conn.recv(4096), server_private_key)
             
             # Receive and decrypt the password, then hash it
-            hashed_password = self.e.hash_data(self.e.decrypt_data(conn.recv(4096), server_private_key))
+            hashed_password = self.tls.hash_data(self.e.decrypt_data(conn.recv(4096), server_private_key))
 
             while True:
                 if (not self.is_user_exists(username, hashed_password) and self.is_username_exists(username)): 
@@ -27,7 +27,7 @@ class Server_Lib:
                     
                     # Receive and decrypt the new username and password
                     username = self.e.decrypt_data(conn.recv(4096), server_private_key)
-                    hashed_password = self.e.hash_data(self.e.decrypt_data(conn.recv(4096), server_private_key))
+                    hashed_password = self.tls.hash_data(self.e.decrypt_data(conn.recv(4096), server_private_key))
                 
                 elif (self.is_user_exists(username, hashed_password)):  # If the user exists
                     conn.send(self.e.encrypt_data("1", client_public_key))

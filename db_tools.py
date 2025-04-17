@@ -1,5 +1,6 @@
 import mysql.connector
 from datetime import *
+import hashlib
 
 class DB_Tools:
     def __init__(self, dbName, host="localhost", user="Ron Yavnel", password="2612"):
@@ -8,6 +9,10 @@ class DB_Tools:
         self.password = password
         self.mydb = self.init_with_db(dbName) 
         
+        
+    # Function to hash data using sha256 (so that the hash uses non-time based salt)
+    def hash_data(self, data):
+        return hashlib.sha256(data.encode()).hexdigest()    
         
     # Function that gets a username and password and updates this user's current ip and port    
     def update_ip_and_port(self, conn, username, password):

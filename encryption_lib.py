@@ -2,8 +2,6 @@
 from Crypto.PublicKey import RSA
 # Import PKCS1_OAEP - an encryption scheme(padding) for RSA
 from Crypto.Cipher import PKCS1_OAEP
-# Import hashlib for hashing
-import hashlib
 
 class Encryption:
     # Initializes file paths for storing public and private keys.
@@ -14,9 +12,6 @@ class Encryption:
         self.client_private_key_file = client_private_key_file
         self.client_public_key_file = client_public_key_file
 
-    # Function to hash data using sha256 (so that the hash uses non-time based salt)
-    def hash_data(self, data):
-        return hashlib.sha256(data.encode()).hexdigest()
     
     # Generate public and private keys
     # Run only once!!!
@@ -74,14 +69,31 @@ class Encryption:
     # Encrypt data using the public key
     def encrypt_data(self, data, public_key):
         cipher = PKCS1_OAEP.new(public_key)
-        encrypted = cipher.encrypt(data.encode('utf-8')) # Encrypt the data by converting string to bytes
-        return encrypted
+        max_chunk_size = 190  # for 2048-bit key + PKCS1_OAEP
+        data_bytes = data.encode('utf-8')
+
+        encrypted_chunks = []
+        for i in range(0, len(data_bytes), max_chunk_size):
+            chunk = data_bytes[i:i + max_chunk_size]
+            encrypted_chunk = cipher.encrypt(chunk)
+            encrypted_chunks.append(encrypted_chunk)
+
+        return b''.join(encrypted_chunks)
+
 
     # Decrypt data using the private key
     def decrypt_data(self, encrypted_data, private_key):
         cipher = PKCS1_OAEP.new(private_key)
-        decrypted = cipher.decrypt(encrypted_data)
-        return decrypted.decode('utf-8') # Decrypt the data by converting bytes to string
+        chunk_size = 256  # RSA 2048-bit key output size (in bytes)
+
+        decrypted_chunks = []
+        for i in range(0, len(encrypted_data), chunk_size):
+            chunk = encrypted_data[i:i + chunk_size]
+            decrypted_chunk = cipher.decrypt(chunk)
+            decrypted_chunks.append(decrypted_chunk)
+
+        return b''.join(decrypted_chunks).decode('utf-8')
+
 
 if __name__ == "__main__":
     encryption = Encryption()
