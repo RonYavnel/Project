@@ -2,18 +2,24 @@ import socket
 from getpass import getpass
 from encryption_lib import Encryption
 import ast
+from client_UI import ClientUI
+import tkinter as tk
+
 
 DEBUG = False
 
 class Client:
         
-    def __init__(self, host, port):
+    def __init__(self, host, port, root):
         self.host = host
         self.port = port
         self.client_socket = None
         self.e = Encryption()
         self.client_private_key = self.e.load_client_private_key()
         self.server_public_key = self.e.load_server_public_key()
+        self.root = root
+        self.ui = ClientUI(self.root, self)
+
 
     def general_input(self, msg, default_val):
         if DEBUG:
@@ -71,7 +77,11 @@ class Client:
         else:
             current_balance = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
             print(f"Your current balance: {current_balance}")
-
+        
+    
+    def start_ui(self):
+        self.root.mainloop()
+    
     def run_whole_client(self):
         self.client_socket = socket.socket()
         self.client_socket.connect((self.host, self.port))
@@ -79,6 +89,8 @@ class Client:
         self.get_and_send_username_and_password()
         self.initialize_client_balance()
 
+        self.initialize_ui()
+        
         while True:
             # Get the list of stocks from the server for client's choice
             stocks_and_prices = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
@@ -118,7 +130,16 @@ class Client:
 
 
 if __name__ == '__main__':
+
     HOST = socket.gethostname()
     PORT = 5000
-    client = Client(HOST, PORT)
+    root = tk.Tk()
+    client = Client(HOST, PORT, root)
+
+    # Start UI in a separate thread (like server)
+    import threading
+    ui_thread = threading.Thread(target=client.start_ui, daemon=True)
+    ui_thread.start()
+
+    # Run logic (including connecting and trading)
     client.run_whole_client()

@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Define colors for better aesthetics
 BG_COLOR = "#f0f8ff"  # Light blue background
-HEADER_BG = "#4682b4"  # Steel blue for headerss
+HEADER_BG = "#4682b4"  # Steel blue for headers
 HEADER_FG = "#ffffff"  # White text for headers
 FONT = ("Helvetica", 12)
 
@@ -33,37 +33,46 @@ class ServerUI:
         resized_image = original_image.resize((768, 503), Image.Resampling.LANCZOS)  # Resize with high-quality resampling
         logo_image = resized_image.copy()
 
-        # Create a copy of the resized image to preserve transparency
-        logo_image = resized_image.copy()
-
         # Display the image in a label
         tk_image = ImageTk.PhotoImage(logo_image)
         logo_label = Label(logo_frame, image=tk_image, bg="#f0f8ff")
         logo_label.image = tk_image  # Keep reference to avoid garbage collection
         logo_label.pack(expand=True)
 
-        # Start fading out the logo after 2 seconds
-        root.after(2000, lambda: self.fade_out_logo(logo_image, logo_label, logo_frame, next_screen_callback))
+        # Pre-build the main UI in the background but don't display it yet
+        def prepare_ui_and_transition():
+            # Create a background frame to hold all UI elements
+            main_frame = Frame(root, bg="#f0f8ff")
+            
+            # Build the UI in this frame (but don't pack/grid it to the root yet)
+            next_screen_callback(main_frame)
+            
+            # Start fading out the logo with a smooth transition
+            fade_out_with_transition(logo_image, logo_label, logo_frame, main_frame)
+        
+        def fade_out_with_transition(logo_image, logo_label, logo_frame, main_frame):
+            alpha = 255  # Start fully opaque
+            
+            def step_fade():
+                nonlocal alpha
+                alpha -= 6  # Gradually decrease opacity
+                if alpha <= 0:
+                    logo_frame.destroy()  # Remove the logo frame completely
+                    # Show the fully built UI immediately
+                    main_frame.pack(fill="both", expand=True)
+                else:
+                    # Create a new image with reduced opacity
+                    faded_image = logo_image.copy()
+                    faded_image.putalpha(alpha)  # Update alpha channel
+                    tk_image = ImageTk.PhotoImage(faded_image)
+                    logo_label.config(image=tk_image)
+                    logo_label.image = tk_image  # Keep a reference to avoid garbage collection
+                    logo_frame.after(50, step_fade)  # Schedule the next step
 
-    def fade_out_logo(self, logo_image, logo_label, logo_frame, next_screen_callback):
-        alpha = 255  # Start fully opaque
-
-        def step_fade():
-            nonlocal alpha
-            alpha -= 6  # Gradually decrease opacity
-            if alpha <= 0:
-                logo_frame.destroy()  # Remove the logo frame completely
-                next_screen_callback()  # Show the main UI
-            else:
-                # Create a new image with reduced opacity
-                faded_image = logo_image.copy()
-                faded_image.putalpha(alpha)  # Update alpha channel
-                tk_image = ImageTk.PhotoImage(faded_image)
-                logo_label.config(image=tk_image)
-                logo_label.image = tk_image  # Keep a reference to avoid garbage collection
-                logo_frame.after(50, step_fade)  # Schedule the next step
-
-        step_fade()  # Start the fade animation
+            step_fade()  # Start the fade animation
+        
+        # Start the sequence after 2 seconds
+        root.after(250, prepare_ui_and_transition)
 
     # Function to play the intro sound
     def play_intro_sound(self):
@@ -121,8 +130,6 @@ class ServerUI:
         graph_window.deiconify()
         graph_window.lift()
 
-
-
     def show_stocks_table(self, root, stocks, stock_prices_history):
         # Creates a space (a Frame) to hold the stock table.
         stock_frame = Frame(root, width=600, height=300, bg=BG_COLOR)
@@ -161,8 +168,6 @@ class ServerUI:
         scrollbar.pack(side="right", fill="y")
         stock_tree.pack(side="left", fill="both", expand=True)
 
-
-
     def show_transactions(self, root):
         # Add a title "Transactions" above the table.
         transactions_label = Label(root, text="Transactions", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
@@ -198,9 +203,6 @@ class ServerUI:
         tree.pack(side="left", fill="both", expand=True)
 
         return tree  # Return the table so it can be updated later.
-    
-    
-
 
     def show_connected_people(self, root, dict_of_connected_people):
         # Create a space (a Frame) to hold the connected people table.
@@ -237,9 +239,7 @@ class ServerUI:
 
         return tree # Give back the table so we can use it later.
 
-
     def initialize_ui_references(self, connected_clients_widget, transactions_widget):
-        
         # Initializes the global references to the Treeview widgets.
         self.connected_clients_tree = connected_clients_widget
         self.transactions_tree = transactions_widget
@@ -256,7 +256,6 @@ class ServerUI:
             self.connected_clients_tree.insert("", "end", values=(ip, port, username))
 
     def refresh_transactions_table(self):
-        
         # Refreshes the transactions table.
         
         # Clear the existing rows
@@ -271,7 +270,6 @@ class ServerUI:
             self.transactions_tree.insert("", "end", values=transaction)
 
     def refresh_stock_graphs(self, stock_prices_dict):
-        
         # Updates stock graphs for each stock symbol.
         
         for stock_symbol, prices in stock_prices_dict.items():
@@ -289,7 +287,6 @@ class ServerUI:
 
                 # Refresh the canvas to display the updated graph
                 canvas.draw()
-    
     
     # Function to show the combined UI            
     def show_combined_ui(self, dict_of_connected_people, stocks, stock_prices_history):
@@ -316,16 +313,19 @@ class ServerUI:
         self.configure_styles()
 
         # Function to initialize and show all UI components after the logo fades out
-        def initialize_ui():
+        def initialize_ui(container=None):
+            # If no container is provided, use root
+            target = container if container else root
+            
             # Create the connected clients and transactions tables
-            self.connected_clients_tree = self.show_connected_people(root, dict_of_connected_people)
-            self.transactions_tree = self.show_transactions(root)
+            self.connected_clients_tree = self.show_connected_people(target, dict_of_connected_people)
+            self.transactions_tree = self.show_transactions(target)
 
             # Initialize references
             self.initialize_ui_references(self.connected_clients_tree, self.transactions_tree)
 
             # Show the stock table
-            self.show_stocks_table(root, stocks, stock_prices_history)
+            self.show_stocks_table(target, stocks, stock_prices_history)
 
         # Show the logo and transition to the main UI
         self.show_logo_and_transition(root, initialize_ui)
@@ -355,5 +355,5 @@ if __name__ == "__main__":
         "TSLA": [720, 725, 730, 735, 740, 745, 750, 755, 760, 765]
     }
 
-    server_ui = ServerUI()
+    server_ui = ServerUI(lambda: None)
     server_ui.show_combined_ui(dict_of_connected_people, stocks, stock_prices_history)

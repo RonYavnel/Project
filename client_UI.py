@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
-from client import Client
 from PIL import Image, ImageTk
 import pygame
 import socket
@@ -816,7 +815,7 @@ class ClientUI:
                 nonlocal alpha
                 alpha -= 6
                 if alpha <= 0:
-                    self.root.quit()  # Exit the application after fade-out
+                    self.root.destroy() # Exit the application after fade-out
                 else:
                     faded_image = logo_image.copy()
                     faded_image.putalpha(alpha)
@@ -833,6 +832,8 @@ class ClientUI:
 
 
 if __name__ == "__main__":
+    from client import Client
+    
     HOST = socket.gethostname()
     PORT = 5000
     client = Client(HOST, PORT)
