@@ -23,4 +23,4 @@ def delete_all_rows_in_table(mydb, tableName):
     mydb.commit()
     
 mydb = tls.init_with_db("stocktradingdb")
-delete_row_in_table_with_specific_value(mydb, "transactions", "username", "maria")
+print(tls.get_all_rows("stocks"))

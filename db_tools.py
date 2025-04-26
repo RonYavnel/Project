@@ -15,22 +15,22 @@ class DB_Tools:
         return hashlib.sha256(data.encode()).hexdigest()    
         
     # Function that gets a username and password and updates this user's current ip and port    
-    def update_ip_and_port(self, conn, username, password):
+    def update_ip_and_port(self, conn, username, hashed_password):
         cursor = self.mydb.cursor()
 
         query = """
             UPDATE Users
             SET ip = %s
-            WHERE username = %s AND password = %s
+            WHERE username = %s AND hashed_password = %s
         """
-        cursor.execute(query, (conn.getpeername()[0], username, password))
+        cursor.execute(query, (conn.getpeername()[0], username, hashed_password))
 
         query = """
             UPDATE Users
             SET port = %s
-            WHERE username = %s AND password = %s
+            WHERE username = %s AND hashed_password = %s
         """
-        cursor.execute(query, (conn.getpeername()[1], username, password))
+        cursor.execute(query, (conn.getpeername()[1], username, hashed_password))
 
         self.mydb.commit()
         cursor.close()
