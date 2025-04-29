@@ -47,22 +47,22 @@ class Encryption:
         print(f"Client keys saved to {self.client_private_key_file} and {self.client_public_key_file}")
 
     # Function to load the server public key
-    def load_server_public_key(self, file_path='server_public.pem'):
+    def load_server_public_key(self, file_path='C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\server_public.pem'):
         with open(file_path, 'rb') as f:
             return RSA.import_key(f.read())
 
     # Function to load the server private key
-    def load_server_private_key(self, file_path='server_private.pem'):
+    def load_server_private_key(self, file_path='C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\server_private.pem'):
         with open(file_path, 'rb') as f:
             return RSA.import_key(f.read())
 
     # Function to load the client public key
-    def load_client_public_key(self, file_path='client_public.pem'):
+    def load_client_public_key(self, file_path='C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\client_public.pem'):
         with open(file_path, 'rb') as f:
             return RSA.import_key(f.read())
 
     # Function to load the client private key
-    def load_client_private_key(self, file_path='client_private.pem'):
+    def load_client_private_key(self, file_path='C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\client_private.pem'):
         with open(file_path, 'rb') as f:
             return RSA.import_key(f.read())
 

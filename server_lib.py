@@ -64,9 +64,9 @@ class Server_Lib:
                 balance = int(self.e.decrypt_data(conn.recv(4096), server_private_key))  # Gets balance from the client
                 self.tls.insert_row(    # Inserts the details of the new client into the database
                     "users", 
-                    "(username, hashed_password, ip, port, last_seen, balance)", 
-                    "(%s, %s, %s, %s, %s, %s)",
-                    (username, hashed_password, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance)
+                    "(username, hashed_password, ip, port, last_seen, balance, ddos_status)", 
+                    "(%s, %s, %s, %s, %s, %s, %s)",
+                    (username, hashed_password, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance, "accepted")
                 )
             return balance  # Returns the balance of the client
 
@@ -189,3 +189,19 @@ class Server_Lib:
                                               "SELECT client_id FROM Users WHERE username = %s AND hashed_password = %s",
                                               username,
                                               hashed_password)
+
+    def get_ddos_status(self, ip):
+        return self.tls.fetchone_functions_one_param(
+                                            "SELECT ddos_status FROM Users WHERE ip = %s",
+                                            ip)
+    
+    def update_ddos_status(self, ip, status):
+        self.tls.commit_functions_two_params(
+                                              "UPDATE Users SET ddos_status = %s WHERE ip = %s",
+                                              status,
+                                              ip)
+        
+    def is_ip_exists(self, ip):
+        return self.tls.fetchone_functions_one_param(
+                                              "SELECT COUNT(*) FROM Users WHERE ip = %s",
+                                              ip) > 0

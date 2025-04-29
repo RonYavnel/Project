@@ -33,47 +33,38 @@ class ServerUI:
         resized_image = original_image.resize((768, 503), Image.Resampling.LANCZOS)  # Resize with high-quality resampling
         logo_image = resized_image.copy()
 
+        # Create a copy of the resized image to preserve transparency
+        logo_image = resized_image.copy()
+
         # Display the image in a label
         tk_image = ImageTk.PhotoImage(logo_image)
         logo_label = Label(logo_frame, image=tk_image, bg="#f0f8ff")
         logo_label.image = tk_image  # Keep reference to avoid garbage collection
         logo_label.pack(expand=True)
 
-        # Pre-build the main UI in the background but don't display it yet
-        def prepare_ui_and_transition():
-            # Create a background frame to hold all UI elements
-            main_frame = Frame(root, bg="#f0f8ff")
-            
-            # Build the UI in this frame (but don't pack/grid it to the root yet)
-            next_screen_callback(main_frame)
-            
-            # Start fading out the logo with a smooth transition
-            fade_out_with_transition(logo_image, logo_label, logo_frame, main_frame)
-        
-        def fade_out_with_transition(logo_image, logo_label, logo_frame, main_frame):
-            alpha = 255  # Start fully opaque
-            
-            def step_fade():
-                nonlocal alpha
-                alpha -= 6  # Gradually decrease opacity
-                if alpha <= 0:
-                    logo_frame.destroy()  # Remove the logo frame completely
-                    # Show the fully built UI immediately
-                    main_frame.pack(fill="both", expand=True)
-                else:
-                    # Create a new image with reduced opacity
-                    faded_image = logo_image.copy()
-                    faded_image.putalpha(alpha)  # Update alpha channel
-                    tk_image = ImageTk.PhotoImage(faded_image)
-                    logo_label.config(image=tk_image)
-                    logo_label.image = tk_image  # Keep a reference to avoid garbage collection
-                    logo_frame.after(50, step_fade)  # Schedule the next step
+        # Start fading out the logo after 2 seconds
+        root.after(2000, lambda: self.fade_out_logo(logo_image, logo_label, logo_frame, next_screen_callback))
 
-            step_fade()  # Start the fade animation
-        
-        # Start the sequence after 2 seconds
-        root.after(250, prepare_ui_and_transition)
+    def fade_out_logo(self, logo_image, logo_label, logo_frame, next_screen_callback):
+        alpha = 255  # Start fully opaque
 
+        def step_fade():
+            nonlocal alpha
+            alpha -= 6  # Gradually decrease opacity
+            if alpha <= 0:
+                logo_frame.destroy()  # Remove the logo frame completely
+                next_screen_callback()  # Show the main UI
+            else:
+                # Create a new image with reduced opacity
+                faded_image = logo_image.copy()
+                faded_image.putalpha(alpha)  # Update alpha channel
+                tk_image = ImageTk.PhotoImage(faded_image)
+                logo_label.config(image=tk_image)
+                logo_label.image = tk_image  # Keep a reference to avoid garbage collection
+                logo_frame.after(50, step_fade)  # Schedule the next step
+
+        step_fade()  # Start the fade animation
+        
     # Function to play the intro sound
     def play_intro_sound(self):
         pygame.mixer.init()
@@ -138,7 +129,7 @@ class ServerUI:
 
         # Adds a title "Stocks" above the table.
         stock_label = Label(root, text="Stocks", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
-        stock_label.place(relx=0.765, rely=0.36, anchor="ne") # Positions the label above the frame.
+        stock_label.place(relx=0.76, rely=0.36, anchor="ne") # Positions the label above the frame.
 
         # Defines the column name for the table.
         columns = ("Stock Name",)
@@ -168,7 +159,7 @@ class ServerUI:
         scrollbar.pack(side="right", fill="y")
         stock_tree.pack(side="left", fill="both", expand=True)
 
-    def show_transactions(self, root):
+    def show_transactions_table(self, root):
         # Add a title "Transactions" above the table.
         transactions_label = Label(root, text="Transactions", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
         transactions_label.pack(anchor="n", pady=10)
@@ -176,7 +167,7 @@ class ServerUI:
         # Create a space (a Frame) to hold the transactions table.
         top_frame = Frame(root, width=1250, height=200, bg=BG_COLOR)
         top_frame.pack_propagate(False)
-        top_frame.place(x=15, rely=0.07)
+        top_frame.place(x=340, rely=0.07) # Position the frame at the top of the window.
 
         # Define the column names for the table.
         columns = ("Username", "Client ID", "Side", "Stock Symbol", "Share Price", "Amount", "Time Stamp")
@@ -204,57 +195,66 @@ class ServerUI:
 
         return tree  # Return the table so it can be updated later.
 
-    def show_connected_people(self, root, dict_of_connected_people):
+    def show_all_clients_table(self, root, dict_of_all_clients):
         # Create a space (a Frame) to hold the connected people table.
         top_frame = Frame(root, width=600, height=300, bg=BG_COLOR)
-        top_frame.pack_propagate(False) # Keep the frame from resizing.
-        top_frame.place(relx=0.26, rely=0.41, anchor="n") # Position the frame.
+        top_frame.pack_propagate(False)  # Keep the frame from resizing.
+        top_frame.place(relx=0.27, rely=0.41, anchor="n")  # Position the frame.
 
         # Add a title "Connected People" above the table.
-        connected_people_label = Label(root, text="Connected People", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
-        connected_people_label.place(relx=0.34, rely=0.36, anchor="ne") # Position the title.
+        connected_people_label = Label(root, text="All Connected Clients", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
+        connected_people_label.place(relx=0.34, rely=0.36, anchor="ne")  # Position the title.
 
         # Define the column names for the table.
-        columns = ("IP Address", "Port", "Username")
+        columns = ("IP Address", "Port", "Username", "DDoS Status")
         # Create the table (a Treeview widget) to display the connected people.
         tree = ttk.Treeview(top_frame, columns=columns, show="headings", height=5)
 
         # Set up the headings for each column.
         for col in columns:
-            tree.heading(col, text=col) # Set the text for the heading.
-            tree.column(col, width=100, anchor="center") # Set the width and alignment.
+            tree.heading(col, text=col)  # Set the text for the heading.
+            tree.column(col, width=100, anchor="center")  # Set the width and alignment.
+
+        # Define tags for coloring rows
+        tree.tag_configure("accepted", background="#d4edda")  # Light green for accepted
+        tree.tag_configure("blocked", background="#f8d7da")  # Light red for blocked
 
         # Add each connected person to the table.
-        for ip_and_port, username in dict_of_connected_people.items():
-            ip, port = ip_and_port # Get the IP and port from the key.
-            tree.insert("", "end", values=(ip, port, username)) # Add the data to the table.
+        for (ip, port, username), ddos_status in dict_of_all_clients.items():
+            tag = "accepted" if ddos_status.lower() == "accepted" else "blocked"
+            tree.insert("", "end", values=(ip, port, username, ddos_status), tags=(tag,))  # Add the data with the appropriate tag.
 
         # Add a scrollbar to the table, in case there are too many connected people to fit.
         scrollbar = ttk.Scrollbar(top_frame, orient="vertical", command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set) # Link the scrollbar to the table.
+        tree.configure(yscrollcommand=scrollbar.set)  # Link the scrollbar to the table.
 
         # Positions the scrollbar and the table within the frame.
-        scrollbar.pack(side="right", fill="y") # Place the scrollbar on the right.
-        tree.pack(side="left", fill="both", expand=True) # Place the table and make it fill the space.
+        scrollbar.pack(side="right", fill="y")  # Place the scrollbar on the right.
+        tree.pack(side="left", fill="both", expand=True)  # Place the table and make it fill the space.
 
-        return tree # Give back the table so we can use it later.
+        return tree  # Give back the table so we can use it later.
 
     def initialize_ui_references(self, connected_clients_widget, transactions_widget):
         # Initializes the global references to the Treeview widgets.
         self.connected_clients_tree = connected_clients_widget
         self.transactions_tree = transactions_widget
 
-    def refresh_connected_clients(self, connected_clients_list):
+    def refresh_all_clients_table(self, dict_of_all_clients):
         # Refreshes the connected clients table.
-    
+
         # Clears the table
         for item in self.connected_clients_tree.get_children():
             self.connected_clients_tree.delete(item)
 
-        # Inserts updated data
-        for ip, port, username in connected_clients_list:
-            self.connected_clients_tree.insert("", "end", values=(ip, port, username))
+        # Define tags for coloring rows
+        self.connected_clients_tree.tag_configure("accepted", background="#d4edda")  # Light green
+        self.connected_clients_tree.tag_configure("blocked", background="#f8d7da")  # Light red
 
+        # Inserts updated data
+        for (ip, port, username), ddos_status in dict_of_all_clients.items():
+            tag = "accepted" if ddos_status.lower() == "accepted" else "blocked"
+            self.connected_clients_tree.insert("", "end", values=(ip, port, username, ddos_status), tags=(tag,))
+        
     def refresh_transactions_table(self):
         # Refreshes the transactions table.
         
@@ -289,7 +289,7 @@ class ServerUI:
                 canvas.draw()
     
     # Function to show the combined UI            
-    def show_combined_ui(self, dict_of_connected_people, stocks, stock_prices_history):
+    def show_combined_ui(self, dict_of_all_clients, stocks, stock_prices_history):
         import ctypes # For changing the taskbar icon
 
         root = Tk("nExchange Dashboard")
@@ -318,8 +318,8 @@ class ServerUI:
             target = container if container else root
             
             # Create the connected clients and transactions tables
-            self.connected_clients_tree = self.show_connected_people(target, dict_of_connected_people)
-            self.transactions_tree = self.show_transactions(target)
+            self.connected_clients_tree = self.show_all_clients_table(target, dict_of_all_clients)
+            self.transactions_tree = self.show_transactions_table(target)
 
             # Initialize references
             self.initialize_ui_references(self.connected_clients_tree, self.transactions_tree)

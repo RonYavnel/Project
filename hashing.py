@@ -22,5 +22,17 @@ def delete_all_rows_in_table(mydb, tableName):
     mycursor.execute(sql)
     mydb.commit()
     
-mydb = tls.init_with_db("stocktradingdb")
-print(tls.get_all_rows("stocks"))
+def insert_value_to_all_rows_in_table(mydb, tableName, columnName, value):
+    mycursor = mydb.cursor()
+    sql = "UPDATE " + tableName + " SET " + columnName + " = %s"
+    mycursor.execute(sql, (value,))
+    mydb.commit()
+
+def change_ddos_status(mydb, username, status):
+    mycursor = mydb.cursor()
+    sql = "UPDATE users SET ddos_status = %s WHERE username = %s"
+    mycursor.execute(sql, (status, username))
+    mydb.commit()
+
+
+change_ddos_status(tls.mydb, "test", "accepted")

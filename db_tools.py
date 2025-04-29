@@ -3,7 +3,7 @@ from datetime import *
 import hashlib
 
 class DB_Tools:
-    def __init__(self, dbName, host="localhost", user="Ron Yavnel", password="2612"):
+    def __init__(self, dbName, host="192.168.68.55", user="Ron Yavnel", password="2612"):
         self.host = host
         self.user = user
         self.password = password
@@ -165,7 +165,7 @@ class DB_Tools:
             print("No column name with name " + tableName)
 
     def fetchone_functions_tuple(self, query, my_tuple):
-        cursor = self.mydb.cursor()
+        cursor = self.mydb.cursor(buffered=True)  # Use buffered cursor
         cursor.execute(query, my_tuple)
         result = cursor.fetchone()
         cursor.close()
@@ -181,7 +181,7 @@ class DB_Tools:
 
     # Abstract function for handling "commit" type sql query functions with three parameters
     def commit_functions_tuple(self, query, my_tuple):
-        mycursor = self.mydb.cursor()
+        mycursor = self.mydb.cursor(buffered=True)  # Use buffered cursor
         mycursor.execute(query, my_tuple)
         self.mydb.commit()
         mycursor.close()
