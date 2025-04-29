@@ -16,7 +16,7 @@ class Server:
         self.server_socket = None
         self.ddos_dict = {} # ip: number of connections
         self.dict_of_all_clients = {} # (ip, port, username): ddos_status
-        self.dict_of_live_connections = {}  # (ip, port): username
+        self.dict_of_active_clients = {}  # (ip, port): username
         self.stock_prices_history = {}  # stock_symbol: [list of stock prices]
         self.mutex = threading.Lock()
         self.e = Encryption()
@@ -110,7 +110,7 @@ class Server:
                     else:
                         # Update the ddos_status to "blocked" for this IP
                         self.s_lib.update_ddos_status(ip, "blocked")
-                        self.ui.refresh_all_clients_table(self.dict_of_all_clients)
+                        self.ui.refresh_all_clients_table(self.dict_of_all_clients, self.dict_of_active_clients)
                         print(f"IP {ip} is registered in DB. DDoS status updated to 'blocked'.")
                 
                 # Send the blocked message to the client
@@ -142,13 +142,13 @@ class Server:
                 self.dict_of_all_clients[conn.getpeername()[0], conn.getpeername()[1], username] = self.s_lib.get_ddos_status(conn.getpeername()[0])
 
 
-            self.dict_of_live_connections[conn.getpeername()] = username
-            print(self.dict_of_live_connections)
+            self.dict_of_active_clients[conn.getpeername()] = username
+            print(self.dict_of_active_clients)
 
             balance = self.s_lib.handle_user_balance(conn, username, hashed_password, server_private_key, client_public_key)
 
             with self.mutex:
-                self.ui.refresh_all_clients_table(self.dict_of_all_clients)
+                self.ui.refresh_all_clients_table(self.dict_of_all_clients, self.dict_of_active_clients)
                 
             while True:
                 # Get available stocks and send the list to the client
@@ -268,16 +268,16 @@ class Server:
             self.ddos_dict[conn.getpeername()[0]] -= 1
 
         finally:
-            self.dict_of_live_connections.pop(conn.getpeername())
-            dict_of_live_connections = [(ip, port, user) for (ip, port), user in self.dict_of_live_connections.items()]
-            self.ui.refresh_all_clients_table(self.dict_of_all_clients)
-            print(self.dict_of_live_connections)
+            self.dict_of_active_clients.pop(conn.getpeername())
+            dict_of_active_clients = [(ip, port, user) for (ip, port), user in self.dict_of_active_clients.items()]
+            self.ui.refresh_all_clients_table(self.dict_of_all_clients, dict_of_active_clients)
+            print(self.dict_of_active_clients)
             self.ddos_dict[conn.getpeername()[0]] -= 1
             conn.close()
             print(f"Connection with {conn} closed")
 
     def start_ui(self):
-        self.ui.show_combined_ui(self.dict_of_all_clients, self.tls.get_all_column_values( "stocks", "symbol"), self.stock_prices_history)
+        self.ui.show_combined_ui(self.dict_of_all_clients, self.dict_of_active_clients, self.tls.get_all_column_values( "stocks", "symbol"), self.stock_prices_history)
 
     def stop_server(self):
         if self.server_socket:

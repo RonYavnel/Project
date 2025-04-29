@@ -195,7 +195,11 @@ class ServerUI:
 
         return tree  # Return the table so it can be updated later.
 
-    def show_all_clients_table(self, root, dict_of_all_clients):
+    def show_all_clients_table(self, root, dict_of_all_clients, dict_of_active_clients):
+        # Ensure dict_of_active_clients is a dictionary
+        if not isinstance(dict_of_active_clients, dict):
+            dict_of_active_clients = {}
+
         # Create a space (a Frame) to hold the connected people table.
         top_frame = Frame(root, width=600, height=300, bg=BG_COLOR)
         top_frame.pack_propagate(False)  # Keep the frame from resizing.
@@ -206,7 +210,7 @@ class ServerUI:
         connected_people_label.place(relx=0.34, rely=0.36, anchor="ne")  # Position the title.
 
         # Define the column names for the table.
-        columns = ("IP Address", "Port", "Username", "DDoS Status")
+        columns = ("IP Address", "Port", "Username", "DDoS Status", "Connection Status")
         # Create the table (a Treeview widget) to display the connected people.
         tree = ttk.Treeview(top_frame, columns=columns, show="headings", height=5)
 
@@ -222,7 +226,15 @@ class ServerUI:
         # Add each connected person to the table.
         for (ip, port, username), ddos_status in dict_of_all_clients.items():
             tag = "accepted" if ddos_status.lower() == "accepted" else "blocked"
-            tree.insert("", "end", values=(ip, port, username, ddos_status), tags=(tag,))  # Add the data with the appropriate tag.
+            
+            if any(ip == key[0] for key in dict_of_active_clients.keys()):
+                # If the IP is in the active clients, set the connection status to "Active"
+                connection_status = "Online"
+            else:
+                # If the IP is not in the active clients, set the connection status to "Offline"
+                connection_status = "Offline"
+                
+            tree.insert("", "end", values=(ip, port, username, ddos_status, connection_status), tags=(tag,))  # Add the data with the appropriate tag.
 
         # Add a scrollbar to the table, in case there are too many connected people to fit.
         scrollbar = ttk.Scrollbar(top_frame, orient="vertical", command=tree.yview)
@@ -233,13 +245,17 @@ class ServerUI:
         tree.pack(side="left", fill="both", expand=True)  # Place the table and make it fill the space.
 
         return tree  # Give back the table so we can use it later.
-
+    
     def initialize_ui_references(self, connected_clients_widget, transactions_widget):
         # Initializes the global references to the Treeview widgets.
         self.connected_clients_tree = connected_clients_widget
         self.transactions_tree = transactions_widget
 
-    def refresh_all_clients_table(self, dict_of_all_clients):
+    def refresh_all_clients_table(self, dict_of_all_clients, dict_of_active_clients):
+        # Ensure dict_of_active_clients is a dictionary
+        if not isinstance(dict_of_active_clients, dict):
+            dict_of_active_clients = {}
+
         # Refreshes the connected clients table.
 
         # Clears the table
@@ -253,8 +269,16 @@ class ServerUI:
         # Inserts updated data
         for (ip, port, username), ddos_status in dict_of_all_clients.items():
             tag = "accepted" if ddos_status.lower() == "accepted" else "blocked"
-            self.connected_clients_tree.insert("", "end", values=(ip, port, username, ddos_status), tags=(tag,))
-        
+            
+            if any(ip == key[0] for key in dict_of_active_clients.keys()):
+                # If the IP is in the active clients, set the connection status to "Active"
+                connection_status = "Online"
+            else:
+                # If the IP is not in the active clients, set the connection status to "Offline"
+                connection_status = "Offline"
+                
+            self.connected_clients_tree.insert("", "end", values=(ip, port, username, ddos_status, connection_status), tags=(tag,))
+    
     def refresh_transactions_table(self):
         # Refreshes the transactions table.
         
@@ -289,7 +313,7 @@ class ServerUI:
                 canvas.draw()
     
     # Function to show the combined UI            
-    def show_combined_ui(self, dict_of_all_clients, stocks, stock_prices_history):
+    def show_combined_ui(self, dict_of_all_clients, dict_of_active_clients, stocks, stock_prices_history):
         import ctypes # For changing the taskbar icon
 
         root = Tk("nExchange Dashboard")
@@ -318,7 +342,7 @@ class ServerUI:
             target = container if container else root
             
             # Create the connected clients and transactions tables
-            self.connected_clients_tree = self.show_all_clients_table(target, dict_of_all_clients)
+            self.connected_clients_tree = self.show_all_clients_table(target, dict_of_all_clients, dict_of_active_clients)
             self.transactions_tree = self.show_transactions_table(target)
 
             # Initialize references
