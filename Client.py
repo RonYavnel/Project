@@ -18,8 +18,8 @@ class Client:
         self.e = Encryption()
         self.client_private_key = self.e.load_client_private_key()
         self.server_public_key = self.e.load_server_public_key()
-        # self.root = root
-        # self.ui = ClientUI(self.root, self)
+        self.root = root
+        self.ui = ClientUI(self.root, self)
         self._received_data = ""
 
     def send_data(self, data):
@@ -198,15 +198,13 @@ if __name__ == '__main__':
     HOST = socket.gethostname()
     PORT = 5000
 
-    # root = tk.Tk()
-    client = Client(HOST, PORT, None)
-
-    client.run_whole_client()
+    root = tk.Tk()
+    client = Client(HOST, PORT, root)
 
     #import threading
     #logic_thread = threading.Thread(target=client.run_whole_client, daemon=True)
     #logic_thread.start()
 
     # Run the UI on the main thread
-    #client.start_ui()
+    client.start_ui()
 

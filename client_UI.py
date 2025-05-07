@@ -268,27 +268,73 @@ class ClientUI:
         self.order_entry = ttk.Entry(self.right_panel, width=30, font=FONT)
         self.order_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
         
-        # Place order button
+        # Add Calculate Total button
+        self.calculate_button = ttk.Button(self.right_panel, text="Calculate Total", 
+                                         command=self.calculate_total_amount)
+        self.calculate_button.grid(row=2, column=0, columnspan=2, pady=10)
+        
+        # Add Total Amount display
+        self.total_amount_label = ttk.Label(self.right_panel, text="Total Amount: $0", 
+                                          font=("Helvetica", 12, "bold"))
+        self.total_amount_label.grid(row=3, column=0, columnspan=2, pady=5)
+        
+        # Place order button (moved down one row)
         self.order_button = ttk.Button(self.right_panel, text="Place Order", 
-                                      command=self.place_order)
-        self.order_button.grid(row=2, column=0, columnspan=2, pady=20)
+                                     command=self.place_order)
+        self.order_button.grid(row=4, column=0, columnspan=2, pady=20)
         
-        # Order help text
+        # Order help text (moved down one row)
         self.help_text = "Format: B$quantity or S$quantity\nExample: B$10"
-        self.help_label = ttk.Label(self.right_panel, text=self.help_text, font=("Helvetica", 10, "italic"))
-        self.help_label.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=5)
-        
+        self.help_label = ttk.Label(self.right_panel, text=self.help_text, 
+                                  font=("Helvetica", 10, "italic"))
+        self.help_label.grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=5)
+
         # Initially hide order section completely
         self.hide_order_section()
         
         # Update stocks from server
         self.update_stocks()
 
+    def calculate_total_amount(self):
+        """Calculate and display the total amount for the order"""
+        try:
+            order = self.order_entry.get().strip()
+            if not order or '$' not in order:
+                messagebox.showerror("Error", "Invalid order format. Use 'side$amount' (e.g., B$10 or S$5)")
+                return
+
+            side, amount = order.split('$')
+            if side.upper() not in ['B', 'S']:
+                messagebox.showerror("Error", "Invalid side. Use 'B' for buy or 'S' for sell")
+                return
+
+            try:
+                quantity = int(amount)
+                if quantity <= 0:
+                    messagebox.showerror("Error", "Amount must be greater than 0")
+                    return
+            except ValueError:
+                messagebox.showerror("Error", "Amount must be a valid number")
+                return
+
+            # Get current stock price
+            current_price = self.stocks_and_prices.get(self.selected_stock, 0)
+            total_amount = quantity * current_price
+
+            # Update total amount display
+            self.total_amount_label.config(text=f"Total Amount: ${total_amount:,.2f}")
+            self.flash_widget(self.total_amount_label, 2)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to calculate total: {str(e)}")
+
     def hide_order_section(self):
         """Hide the entire order entry section"""
         self.order_title_label.grid_remove()
         self.order_label.grid_remove()
         self.order_entry.grid_remove()
+        self.calculate_button.grid_remove()
+        self.total_amount_label.grid_remove()
         self.order_button.grid_remove()
         self.help_label.grid_remove()
 
@@ -297,6 +343,8 @@ class ClientUI:
         self.order_title_label.grid()
         self.order_label.grid()
         self.order_entry.grid()
+        self.calculate_button.grid()
+        self.total_amount_label.grid()
         self.order_button.grid()
         self.help_label.grid()
         self.order_entry.bind('<Return>', lambda event: self.place_order())
