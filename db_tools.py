@@ -3,7 +3,7 @@ from datetime import *
 import hashlib
 
 class DB_Tools:
-    def __init__(self, dbName, host="192.168.68.55", user="Ron Yavnel", password="2612"):
+    def __init__(self, dbName, host="localhost", user="Ron Yavnel", password="2612"):
         self.host = host
         self.user = user
         self.password = password
@@ -164,7 +164,18 @@ class DB_Tools:
         else:
             print("No column name with name " + tableName)
 
+
+
+
+
+    def reconnect_if_needed(self):
+        if not self.mydb.is_connected():
+            print("Reconnecting to MySQL...")
+            self.mydb.reconnect(attempts=3, delay=2)
+
+
     def fetchone_functions_tuple(self, query, my_tuple):
+        self.reconnect_if_needed()
         cursor = self.mydb.cursor(buffered=True)  # Use buffered cursor
         cursor.execute(query, my_tuple)
         result = cursor.fetchone()
@@ -181,6 +192,7 @@ class DB_Tools:
 
     # Abstract function for handling "commit" type sql query functions with three parameters
     def commit_functions_tuple(self, query, my_tuple):
+        self.reconnect_if_needed()
         mycursor = self.mydb.cursor(buffered=True)  # Use buffered cursor
         mycursor.execute(query, my_tuple)
         self.mydb.commit()

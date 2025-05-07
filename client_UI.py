@@ -301,12 +301,42 @@ class ClientUI:
         self.help_label.grid()
         self.order_entry.bind('<Return>', lambda event: self.place_order())
 
+    def handle_ddos_response(self):
+        try:
+            load_status = self.client.recv_data()
+
+            if load_status == "Server is busy. Please try again later":
+                messagebox.showerror("Server Overload", "Server is currently at maximum capacity. Please try again later.")
+                self.root.destroy()
+                return False
+
+            ddos_status = self.client.recv_data()
+            if ddos_status == "You are blocked due to too many login attempts.":
+                messagebox.showerror("Blocked", "You are blocked due to too many login attempts. Please try again later.")
+                self.root.destroy()
+                return False
+
+            return True
+
+        except Exception as e:
+            messagebox.showerror("Connection Error", f"An error occurred while handling server response: {e}")
+            self.root.destroy()
+            return False
+
+
     def login(self, event=None):  # Add event parameter to handle both button and key binding
         """Handle login process and transition to main frame"""
         try:
             # Unbind Return key to prevent errors after frame destruction
             if hasattr(self, 'login_binding'):
                 self.root.unbind('<Return>', self.login_binding)
+
+            # Connect to server
+            self.client.client_socket = socket.socket()
+            self.client.client_socket.connect((self.client.host, self.client.port))
+
+            if not self.handle_ddos_response():
+                return
 
             # Get credentials
             username = self.username_entry.get()
@@ -316,18 +346,12 @@ class ClientUI:
                 messagebox.showerror("Error", "Please enter both username and password")
                 return
 
-            # Connect to server
-            self.client.client_socket = socket.socket()
-            self.client.client_socket.connect((self.client.host, self.client.port))
-
             # Send credentials
-            self.client.client_socket.send(self.client.e.encrypt_data(username, self.client.server_public_key))
-            time.sleep(0.5)
-            self.client.client_socket.send(self.client.e.encrypt_data(password, self.client.server_public_key))
+            self.client.send_data(username)
+            self.client.send_data(password)
 
             # Get server response
-            result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
-                                            self.client.client_private_key)
+            result = self.client.recv_data()
 
             if result == '2':
                 messagebox.showerror("Error", "Username already exists. Please enter a new one.")
@@ -350,11 +374,12 @@ class ClientUI:
 
     def fetch_balance(self):
         try:
-            response = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+            response = self.client.recv_data()
             
             if response == "1":
-                balance = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
+                balance = self.client.recv_data()
                 return balance
+                
             elif response == "0":
                 # Create a modal dialog window
                 dialog = tk.Toplevel(self.root)
@@ -406,9 +431,7 @@ class ClientUI:
                 dialog.wait_window()
                 
                 if result[0]:
-                    self.client.client_socket.send(
-                        self.client.e.encrypt_data(str(result[0]), self.client.server_public_key)
-                    )
+                    self.client.send_data(str(result[0]))
                     return result[0]
                 return 0
                 
@@ -422,8 +445,7 @@ class ClientUI:
         Fetch the list of stocks from the server and update the dropdown.
         """
         try:
-            encrypted_data = self.client.client_socket.recv(4096)
-            stock_data = self.client.e.decrypt_data(encrypted_data, self.client.client_private_key)
+            stock_data = self.client.recv_data()
 
             self.stocks_and_prices = ast.literal_eval(stock_data)
 
@@ -492,7 +514,7 @@ class ClientUI:
             print(f"Confirming stock selection: {stock_symbol}")
 
             # Send the selected stock to the server
-            self.client.client_socket.send(self.client.e.encrypt_data(stock_symbol, self.client.server_public_key))
+            self.client.send_data(stock_symbol)
 
             # Set stock as selected and store the symbol
             self.stock_selected = True
@@ -645,25 +667,23 @@ class ClientUI:
             self.client.client_socket.settimeout(0.1)
             try:
                 while True:
-                    self.client.client_socket.recv(4096)
+                    self.client.recv_data()
             except socket.timeout:
                 pass
             self.client.client_socket.settimeout(None)
 
             # Send the order
-            self.client.client_socket.send(self.client.e.encrypt_data(order, self.client.server_public_key))
+            self.client.send_data(order)
 
             # Wait for order confirmation
-            order_confirmation = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
-                                                        self.client.client_private_key)
+            order_confirmation = self.client.recv_data()
             
             if order_confirmation != "Order received":
                 messagebox.showerror("Order Error", order_confirmation)
                 return
 
             # Wait for transaction result
-            transaction_result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
-                                                        self.client.client_private_key)
+            transaction_result = self.client.recv_data()
 
             if "Error" in transaction_result:
                 messagebox.showerror("Transaction Failed", transaction_result)
@@ -676,8 +696,7 @@ class ClientUI:
                 self.flash_widget(self.balance_label, 3)
 
             # Get updated price
-            updated_price = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
-                                                    self.client.client_private_key)
+            updated_price = self.client.recv_data()
 
             try:
                 if not isinstance(ast.literal_eval(updated_price), dict):
@@ -832,12 +851,13 @@ class ClientUI:
 
 
 if __name__ == "__main__":
-    from client import Client
+    from Client import Client
     
     HOST = socket.gethostname()
     PORT = 5000
-    client = Client(HOST, PORT)
 
     root = tk.Tk()
+    client = Client(HOST, PORT, root)
+
     app = ClientUI(root, client)
     root.mainloop()

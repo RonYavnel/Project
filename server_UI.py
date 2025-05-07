@@ -167,7 +167,7 @@ class ServerUI:
         # Create a space (a Frame) to hold the transactions table.
         top_frame = Frame(root, width=1250, height=200, bg=BG_COLOR)
         top_frame.pack_propagate(False)
-        top_frame.place(x=340, rely=0.07) # Position the frame at the top of the window.
+        top_frame.place(x=150, rely=0.07) # Position the frame at the top of the window.
 
         # Define the column names for the table.
         columns = ("Username", "Client ID", "Side", "Stock Symbol", "Share Price", "Amount", "Time Stamp")
@@ -201,7 +201,7 @@ class ServerUI:
             dict_of_active_clients = {}
 
         # Create a space (a Frame) to hold the connected people table.
-        top_frame = Frame(root, width=600, height=300, bg=BG_COLOR)
+        top_frame = Frame(root, width=800, height=300, bg=BG_COLOR)
         top_frame.pack_propagate(False)  # Keep the frame from resizing.
         top_frame.place(relx=0.27, rely=0.41, anchor="n")  # Position the frame.
 
@@ -210,7 +210,7 @@ class ServerUI:
         connected_people_label.place(relx=0.34, rely=0.36, anchor="ne")  # Position the title.
 
         # Define the column names for the table.
-        columns = ("IP Address", "Port", "Username", "DDoS Status", "Connection Status")
+        columns = ("IP Address", "Username", "DDoS Status", "Connection Status")
         # Create the table (a Treeview widget) to display the connected people.
         tree = ttk.Treeview(top_frame, columns=columns, show="headings", height=5)
 
@@ -224,7 +224,7 @@ class ServerUI:
         tree.tag_configure("blocked", background="#f8d7da")  # Light red for blocked
 
         # Add each connected person to the table.
-        for (ip, port, username), ddos_status in dict_of_all_clients.items():
+        for (ip, username), ddos_status in dict_of_all_clients.items():
             tag = "accepted" if ddos_status.lower() == "accepted" else "blocked"
             
             if any(ip == key[0] for key in dict_of_active_clients.keys()):
@@ -234,7 +234,7 @@ class ServerUI:
                 # If the IP is not in the active clients, set the connection status to "Offline"
                 connection_status = "Offline"
                 
-            tree.insert("", "end", values=(ip, port, username, ddos_status, connection_status), tags=(tag,))  # Add the data with the appropriate tag.
+            tree.insert("", "end", values=(ip, username, ddos_status, connection_status), tags=(tag,))  # Add the data with the appropriate tag.
 
         # Add a scrollbar to the table, in case there are too many connected people to fit.
         scrollbar = ttk.Scrollbar(top_frame, orient="vertical", command=tree.yview)
@@ -267,7 +267,7 @@ class ServerUI:
         self.connected_clients_tree.tag_configure("blocked", background="#f8d7da")  # Light red
 
         # Inserts updated data
-        for (ip, port, username), ddos_status in dict_of_all_clients.items():
+        for (ip, username), ddos_status in dict_of_all_clients.items():
             tag = "accepted" if ddos_status.lower() == "accepted" else "blocked"
             
             if any(ip == key[0] for key in dict_of_active_clients.keys()):
@@ -277,7 +277,7 @@ class ServerUI:
                 # If the IP is not in the active clients, set the connection status to "Offline"
                 connection_status = "Offline"
                 
-            self.connected_clients_tree.insert("", "end", values=(ip, port, username, ddos_status, connection_status), tags=(tag,))
+            self.connected_clients_tree.insert("", "end", values=(ip, username, ddos_status, connection_status), tags=(tag,))
     
     def refresh_transactions_table(self):
         # Refreshes the transactions table.

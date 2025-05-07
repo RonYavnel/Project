@@ -5,50 +5,53 @@ import time
 from datetime import datetime
 
 class Server_Lib:
-    def __init__(self):
+    def __init__(self, server):
+        self.server = server
         # Initialize the Encryption class
         self.e = Encryption()
         # Initialize the DB_Tools class
         self.tls = DB_Tools("stocktradingdb")
 
     # Function that handles a new connection
-    def handle_user_connection(self, conn, server_private_key, client_public_key):
+    def handle_user_connection(self, conn, received_data):
         try:
             # Receive and decrypt the username
-            username = self.e.decrypt_data(conn.recv(4096), server_private_key)
+            username, received_data = self.server.recv_data(conn, received_data)
             
             # Receive and decrypt the password, then hash it
-            hashed_password = self.tls.hash_data(self.e.decrypt_data(conn.recv(4096), server_private_key))
+            password, received_data = self.server.recv_data(conn, received_data)
+            hashed_password = self.tls.hash_data(password)
 
             while True:
                 if (not self.is_user_exists(username, hashed_password) and self.is_username_exists(username)): 
                     # If the user does not exist but there is a user with the same username
-                    conn.send(self.e.encrypt_data("2", client_public_key))
+                    self.server.send_data(conn, "2")
                     
                     # Receive and decrypt the new username and password
-                    username = self.e.decrypt_data(conn.recv(4096), server_private_key)
-                    hashed_password = self.tls.hash_data(self.e.decrypt_data(conn.recv(4096), server_private_key))
+                    username, received_data = self.server.recv_data(conn, received_data)
+                    password, received_data = self.server.recv_data(conn, received_data)
+                    hashed_password = self.tls.hash_data(password)
                 
                 elif (self.is_user_exists(username, hashed_password)):  # If the user exists
-                    conn.send(self.e.encrypt_data("1", client_public_key))
+                    self.server.send_data(conn, "1")
                     break
                 else:
-                    conn.send(self.e.encrypt_data("0", client_public_key))
+                    self.server.send_data(conn, "0")
                     break
             
-            return username, hashed_password
+            return username, hashed_password, received_data
 
         except (ConnectionResetError, ConnectionAbortedError, ValueError, OSError):
             print("Client disconnected unexpectedly during user connection handling.")
-            return None, None
+            return None, None, ""
 
     # If user exists - update his ip, port and last_seen
     # If not exists - get balance from him and insert his details
     # Eventually, returns the balance of the client
-    def handle_user_balance(self, conn, username, hashed_password, server_private_key, client_public_key):
+    def handle_user_balance(self, conn, username, hashed_password, received_data):
         try:
             if self.is_user_exists(username, hashed_password):
-                conn.send(self.e.encrypt_data("1", client_public_key))
+                self.server.send_data(conn, "1")
                 
                 # Sends confirmation to the client
                 balance = self.get_user_balance(username, hashed_password)  # Gets client's balance
@@ -56,19 +59,20 @@ class Server_Lib:
                 self.tls.update_ip_and_port(conn, username, hashed_password)  # Updates IP and port
                 self.update_last_seen(username, hashed_password)  # Updates last_seen
                 time.sleep(0.1)
-                conn.send(self.e.encrypt_data(str(balance), client_public_key))  # Sends the client his balance
+                self.server.send_data(conn, str(balance))  # Sends the client his balance
 
             else:
-                conn.send(self.e.encrypt_data("0", client_public_key))
+                self.server.send_data(conn, "0")
                 # Sends confirmation to the client
-                balance = int(self.e.decrypt_data(conn.recv(4096), server_private_key))  # Gets balance from the client
+                balance, received_data = self.server.recv_data(conn, received_data)  # Gets balance from the client
+                balance = int(balance)  # Converts the balance to an integer
                 self.tls.insert_row(    # Inserts the details of the new client into the database
                     "users", 
                     "(username, hashed_password, ip, port, last_seen, balance, ddos_status)", 
                     "(%s, %s, %s, %s, %s, %s, %s)",
                     (username, hashed_password, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance, "accepted")
                 )
-            return balance  # Returns the balance of the client
+            return balance, received_data  # Returns the balance of the client
 
         except (ConnectionResetError, ConnectionAbortedError, ValueError, OSError):
             print("Client disconnected unexpectedly during balance handling.")
@@ -76,7 +80,7 @@ class Server_Lib:
 
 
     # Funtion that update all the data about the client and the share after transaction
-    def update_all_data(self, conn, username, hashed_password, balance, side, amount, stock_symbol, share_price, client_public_key):
+    def update_all_data(self, conn, username, hashed_password, balance, side, amount, stock_symbol, share_price):
         self.update_last_seen(username, hashed_password) # Updates last_seen time of the client
         self.update_balance(username, hashed_password, balance) # Updates client's balance
         if side.upper() == "S":
@@ -89,7 +93,7 @@ class Server_Lib:
             self.update_highest_price(stock_symbol, share_price)
         if share_price < self.get_lowest_share_price(stock_symbol):  # Update the lowest_share_price if needed
             self.update_lowest_price(stock_symbol, share_price)
-        conn.send(self.e.encrypt_data(str(share_price), client_public_key)) # Send the updated share price to the client
+        self.server.send_data(conn, str(share_price)) # Send the updated share price to the client
         
                 
     # Function that checks if username with given name and password exists

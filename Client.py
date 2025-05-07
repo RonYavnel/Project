@@ -2,6 +2,7 @@ import socket
 from getpass import getpass
 from encryption_lib import Encryption
 import ast
+from server_constants import DATA_DELIMITER
 from client_UI import ClientUI
 import tkinter as tk
 
@@ -19,8 +20,31 @@ class Client:
         self.server_public_key = self.e.load_server_public_key()
         # self.root = root
         # self.ui = ClientUI(self.root, self)
+        self._received_data = ""
 
+    def send_data(self, data):
+        """Send data to the client."""
+        try:
+            self.client_socket.send(self.e.encrypt_data(data+DATA_DELIMITER, self.server_public_key))
+        except Exception as e:
+            print(f"Error sending data: {e}")
 
+    def recv_data(self):
+        # Receive data from the server
+        if not DATA_DELIMITER in self._received_data:
+            # read more data from the socket
+            data = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
+            if not data:
+                raise ConnectionError("Connection closed by server")
+            # add new data to the received data
+            self._received_data += data
+            # if still no delimiter - raise an error
+            if not DATA_DELIMITER in self._received_data:
+                raise ConnectionError("Missing delimiter in received data")
+        data, _, self._received_data = self._received_data.partition(DATA_DELIMITER)
+        
+        return data
+    
     def general_input(self, msg, default_val):
         if DEBUG:
             print("returning " + default_val)
@@ -36,7 +60,7 @@ class Client:
     def get_and_send_username_and_password(self):
         # Fill in personal details - username and password
         # Send them to the server
-        load_status = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
+        load_status = self.recv_data()
         print("load_status:", load_status)
         if load_status == "Server is busy. Please try again later.":
             try:
@@ -47,7 +71,7 @@ class Client:
                 self.client_socket.close()  # Close the socket
             raise ConnectionError("Overloading block")  # Raise an exception
         
-        ddos_result = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
+        ddos_result = self.recv_data()
         print("ddos:", ddos_result)
         
         if ddos_result == "You are blocked due to too many login attempts.":
@@ -61,22 +85,22 @@ class Client:
         
         
         username = self.general_input("Enter your username: ", "ron")
-        self.client_socket.send(self.e.encrypt_data(username, self.server_public_key))  # Encrypt and send username
+        self.send_data(username) # Encrypt and send username
 
         password = self.general_password_input("Enter your password: ", "10010")
-        self.client_socket.send(self.e.encrypt_data(password, self.server_public_key))  # Encrypt and send password
+        self.send_data(password)  # Encrypt and send password
         
         # Handle new user registration
         while True:
             # Receive the answer from the server
-            result = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)  
+            result = self.recv_data()  
             if result == '2':
                 print("Username already exists. Please enter a new one.")
                 username = self.general_input("Enter your username: ", "ron")
-                self.client_socket.send(self.e.encrypt_data(username, self.server_public_key))
+                self.send_data(username)
 
                 password = self.general_password_input("Enter your password: ", "10010")
-                self.client_socket.send(self.e.encrypt_data(password, self.server_public_key))
+                self.send_data(password)
             elif result == '1':
                 print(f"Welcome back {username}!")
                 break
@@ -87,7 +111,7 @@ class Client:
     def initialize_client_balance(self):
         # Check if client with these characteristics exists - the server sends the answer:
         # 1 if registered and 0 if not
-        is_registered = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
+        is_registered = self.recv_data()
 
         if is_registered == '0':
             while True:
@@ -97,9 +121,9 @@ class Client:
                 except ValueError:
                     print("Invalid balance entered. Please enter a numeric value.")
 
-            self.client_socket.send(self.e.encrypt_data(str(balance), self.server_public_key))
+            self.send_data(str(balance))
         else:
-            current_balance = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
+            current_balance = self.recv_data()
             print(f"Your current balance: {current_balance}")
         
     
@@ -116,7 +140,7 @@ class Client:
             
             while True:
                 # Get the list of stocks from the server for client's choice
-                stocks_and_prices = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
+                stocks_and_prices = self.recv_data()
                 stocks_and_prices = ast.literal_eval(stocks_and_prices)
                 list_of_stocks = list(stocks_and_prices.keys())
                 # Get the wanted stock symbol from the client
@@ -127,7 +151,7 @@ class Client:
                     stock_symbol = self.general_input(f"Invalid stock. Choose from {list_of_stocks}: ", "AAPL").upper()
 
                 # Send the stock symbol to the server
-                self.client_socket.send(self.e.encrypt_data(stock_symbol, self.server_public_key))
+                self.send_data(stock_symbol)
 
                 # Receive the current share price from the server
                 share_price = stocks_and_prices[stock_symbol]
@@ -136,25 +160,25 @@ class Client:
                 while True:
                     order = self.general_input("Enter your order (side$amount): ", "")
 
-                    self.client_socket.send(self.e.encrypt_data(order, self.server_public_key))
+                    self.send_data(order)
 
-                    server_response = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
+                    server_response = self.recv_data()
                     print(server_response)
 
                     if server_response == "Order received":
                         break
 
-                response = self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key)
+                response = self.recv_data()
                 print(response)
 
-                share_price = int(self.e.decrypt_data(self.client_socket.recv(4096), self.client_private_key))
+                share_price = int(self.recv_data())
                 print(f"New share price: {share_price}")
         except ConnectionError as e:
             if str(e) == "Overloading block":
                 print("Server is currently at maximum capacity. Please try again later.")
                 return
             elif str(e) == "DDoS block":
-                print("Connection blocked due to too many login attempts. Please try again later.")
+                print("Connection blocked due to too many login attempts. DDos detected.")
                 return
             else:
                 print(f"Connection error: {e}")
@@ -171,16 +195,18 @@ class Client:
 
 
 if __name__ == '__main__':
-
     HOST = socket.gethostname()
     PORT = 5000
-    #root = tk.Tk()
+
+    # root = tk.Tk()
     client = Client(HOST, PORT, None)
 
-    # Start UI in a separate thread (like server)
-    #import threading
-    #ui_thread = threading.Thread(target=client.start_ui, daemon=True)
-    #ui_thread.start()
-
-    # Run logic (including connecting and trading)
     client.run_whole_client()
+
+    #import threading
+    #logic_thread = threading.Thread(target=client.run_whole_client, daemon=True)
+    #logic_thread.start()
+
+    # Run the UI on the main thread
+    #client.start_ui()
+
