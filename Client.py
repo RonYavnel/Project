@@ -126,7 +126,6 @@ class Client:
             current_balance = self.recv_data()
             print(f"Your current balance: {current_balance}")
         
-    
     def start_ui(self):
         self.root.mainloop()
     

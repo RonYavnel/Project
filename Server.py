@@ -184,6 +184,7 @@ class Server:
             if (ip, username) not in self.dict_of_all_clients:
                 self.dict_of_all_clients[ip, username] = self.s_lib.get_ddos_status(ip)
 
+            print("dict_of_active_clients: ", self.dict_of_active_clients)
             with self.mutex:
                 self.ui.refresh_all_clients_table(self.dict_of_all_clients, self.dict_of_active_clients)
                 

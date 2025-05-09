@@ -186,7 +186,7 @@ class Server_Lib:
                                     new_amount, 
                                     stock_symbol)
         
-    
+
     # Function that gets a username and hashed_password and returns the client_id of the user  
     def get_client_id(self, username, hashed_password):
         return self.tls.fetchone_functions_two_params(

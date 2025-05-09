@@ -29,7 +29,7 @@ class ServerUI:
         logo_frame.pack(fill="both", expand=True)
 
         # Load and resize the image
-        original_image = Image.open("nExchange_logo.png").convert("RGBA")
+        original_image = Image.open("C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo.png").convert("RGBA")
         resized_image = original_image.resize((768, 503), Image.Resampling.LANCZOS)  # Resize with high-quality resampling
         logo_image = resized_image.copy()
 
@@ -319,15 +319,15 @@ class ServerUI:
         root = Tk("nExchange Dashboard")
         root.title("nExchange Dashboard")
 
-        root.iconbitmap("nExchange_logo_icon.png")  # Sets the window icon
+        root.iconbitmap("C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo_icon.png")  # Sets the window icon
 
         # Force taskbar icon change
-        icon_path = "nExchange_logo_icon.ico"  # Replace with your icon file
+        icon_path = "C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo_icon.ico"
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("my_custom_python_app")
         root.wm_iconbitmap(icon_path)
 
-        photo = PhotoImage(file="nExchange_logo_icon.png")
-        root.iconphoto(False, photo)
+        photo = PhotoImage(file="C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo_icon.png")
+        root.iconphoto(True, photo)
 
         root.geometry(f"{root.winfo_screenwidth()}x{root.winfo_screenheight()}")
         root.configure(bg="#f0f8ff")
