@@ -1,36 +1,31 @@
 import mysql.connector
 from datetime import *
-import hashlib
 
 class DB_Tools:
-    def __init__(self, dbName, host="192.168.68.55", user="Ron Yavnel", password="2612"):
+    def __init__(self, dbName, host="localhost", user="Ron Yavnel", password="2612"):
         self.host = host
         self.user = user
         self.password = password
         self.mydb = self.init_with_db(dbName) 
         
         
-    # Function to hash data using sha256 (so that the hash uses non-time based salt)
-    def hash_data(self, data):
-        return hashlib.sha256(data.encode()).hexdigest()    
-        
     # Function that gets a username and password and updates this user's current ip and port    
-    def update_ip_and_port(self, conn, username, hashed_password):
+    def update_ip_and_port(self, conn, username, password):
         cursor = self.mydb.cursor()
 
         query = """
             UPDATE Users
             SET ip = %s
-            WHERE username = %s AND hashed_password = %s
+            WHERE username = %s AND password = %s
         """
-        cursor.execute(query, (conn.getpeername()[0], username, hashed_password))
+        cursor.execute(query, (conn.getpeername()[0], username, password))
 
         query = """
             UPDATE Users
             SET port = %s
-            WHERE username = %s AND hashed_password = %s
+            WHERE username = %s AND password = %s
         """
-        cursor.execute(query, (conn.getpeername()[1], username, hashed_password))
+        cursor.execute(query, (conn.getpeername()[1], username, password))
 
         self.mydb.commit()
         cursor.close()
@@ -165,7 +160,7 @@ class DB_Tools:
             print("No column name with name " + tableName)
 
     def fetchone_functions_tuple(self, query, my_tuple):
-        cursor = self.mydb.cursor(buffered=True)  # Use buffered cursor
+        cursor = self.mydb.cursor()
         cursor.execute(query, my_tuple)
         result = cursor.fetchone()
         cursor.close()
@@ -181,7 +176,7 @@ class DB_Tools:
 
     # Abstract function for handling "commit" type sql query functions with three parameters
     def commit_functions_tuple(self, query, my_tuple):
-        mycursor = self.mydb.cursor(buffered=True)  # Use buffered cursor
+        mycursor = self.mydb.cursor()
         mycursor.execute(query, my_tuple)
         self.mydb.commit()
         mycursor.close()

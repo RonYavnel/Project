@@ -14,12 +14,10 @@ HEADER_FG = "#ffffff"  # White text for headers
 FONT = ("Helvetica", 12)
 
 class ClientUI:
-    
     def __init__(self, root, client):
         self.root = root
         self.client = client
         self.stock_selected = False
-        self.stocks_and_prices = {}
 
         self.root.title("nExchange Client")
         self.root.geometry(f"{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}")
@@ -27,19 +25,19 @@ class ClientUI:
         self.root.state("zoomed")
         self.root.configure(bg=BG_COLOR)
 
-        # Set application ID first
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("nExchange.Client.1.0")
-        
-        # Set window icon (.ico for taskbar, .png for window)
-        icon_path = "C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo_icon.ico"
-        self.root.iconbitmap(icon_path)
-        
-        # Set window icon using PhotoImage
-        photo = tk.PhotoImage(file="C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo_icon.png")
-        self.root.iconphoto(True, photo)
+        # Set window icon (matching ServerUI)
+        self.root.iconbitmap("nExchange_logo_icon.png")
+        photo = tk.PhotoImage(file="nExchange_logo_icon.png")
+        self.root.iconphoto(False, photo)
+
+        # Force taskbar icon change
+        icon_path = "nExchange_logo_icon.ico"
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("stock_trading_client_app")
+        self.root.wm_iconbitmap(icon_path)
+
 
         self.configure_styles()
-        self.play_sound("C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\intro.mp3")
+        self.play_intro_sound()
         self.show_logo_and_transition(self.create_login_frame)
 
     def configure_styles(self):
@@ -75,12 +73,11 @@ class ClientUI:
                       foreground=HEADER_FG)
         style.map("Treeview.Heading", background=[("active", HEADER_BG)])
 
-
-    def play_sound(self, path):
+    def play_intro_sound(self):
         pygame.mixer.init()
-        pygame.mixer.music.load(path)
+        pygame.mixer.music.load("intro.mp3")
         pygame.mixer.music.play()
-        
+
     def fade_out_logo(self, logo_image, logo_label, logo_frame, next_screen_callback):
         alpha = 255  
 
@@ -104,7 +101,7 @@ class ClientUI:
         logo_frame = tk.Frame(self.root, bg=BG_COLOR)
         logo_frame.pack(fill="both", expand=True)
 
-        original_image = Image.open("C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo.png").convert("RGBA")
+        original_image = Image.open("nExchange_logo.png").convert("RGBA")
         resized_image = original_image.resize((768, 503), Image.Resampling.LANCZOS)
         logo_image = resized_image.copy()
 
@@ -122,7 +119,7 @@ class ClientUI:
         container.place(relx=0.5, rely=0.5, anchor="center")
         
         # Add logo image
-        logo_image = tk.PhotoImage(file="C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo_icon.png")
+        logo_image = tk.PhotoImage(file="nExchange_logo_icon.png")
         logo_label = tk.Label(container, image=logo_image, bg=BG_COLOR)
         logo_label.image = logo_image  # Keep a reference to prevent garbage collection
         logo_label.pack(pady=(0, 10))
@@ -199,7 +196,7 @@ class ClientUI:
 
         # Add the logo on the left
         try:
-            logo_img = Image.open("C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo.png").resize((150, 100), Image.Resampling.LANCZOS)
+            logo_img = Image.open("nExchange_logo.png").resize((150, 100), Image.Resampling.LANCZOS)
             logo_photo = ImageTk.PhotoImage(logo_img)
             logo_label = ttk.Label(header_frame, image=logo_photo)
             logo_label.image = logo_photo
@@ -240,8 +237,7 @@ class ClientUI:
         ttk.Label(left_panel, text="Choose Stock:").grid(row=1, column=0, sticky=tk.W, pady=5)
         self.stock_combobox = ttk.Combobox(left_panel, state="readonly", width=20, font=FONT)
         self.stock_combobox.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
-        self.stock_combobox.bind("<<ComboboxSelected>>", self.choose_stock)
-
+        self.stock_combobox.bind("<<ComboboxSelected>>", self.update_stock_price)
         
         # Stock price display
         ttk.Label(left_panel, text="Current Price:").grid(row=2, column=0, sticky=tk.W, pady=5)
@@ -263,131 +259,56 @@ class ClientUI:
         # Order section title (hidden initially)
         self.order_title_label = ttk.Label(self.right_panel, text="Order Entry", 
                                          font=("Helvetica", 16, "bold"))
-        self.order_title_label.grid(row=0, column=3, columnspan=2, sticky=tk.W, pady=(0, 15))
+        self.order_title_label.grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 15))
         
         # Order input fields
-        self.side_label = ttk.Label(self.right_panel, text="Side: B for Buy, S for Sell")
-        self.side_label.grid(row=1, column=2, sticky=tk.W, padx=10, pady=5)
-
-        self.side_entry = ttk.Entry(self.right_panel, width=5, font=FONT)
-        self.side_entry.grid(row=1, column=3, sticky=(tk.W, tk.E), padx=10, pady=5)
-
-        self.amount_label = ttk.Label(self.right_panel, text="Amount: ")
-        self.amount_label.grid(row=1, column=4, sticky=tk.W, padx=10, pady=5)
-
-        self.amount_entry = ttk.Entry(self.right_panel, width=10, font=FONT)
-        self.amount_entry.grid(row=1, column=5, sticky=(tk.W, tk.E), padx=10, pady=5)
+        self.order_label = ttk.Label(self.right_panel, text="Order (side$amount):")
+        self.order_label.grid(row=1, column=0, sticky=tk.W, pady=5)
         
-        # Add Calculate Total button
-        self.calculate_button = ttk.Button(self.right_panel, text="Calculate Total", 
-                                         command=self.calculate_total_amount)
-        self.calculate_button.grid(row=2, column=3, columnspan=2, pady=10)
+        self.order_entry = ttk.Entry(self.right_panel, width=30, font=FONT)
+        self.order_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=10, pady=5)
         
-        # Add Total Amount display
-        self.total_amount_label = ttk.Label(self.right_panel, text="Total Amount: $0", 
-                                          font=("Helvetica", 12, "bold"))
-        self.total_amount_label.grid(row=3, column=3, columnspan=2, pady=5)
-        
-        # Place order button (moved down one row)
+        # Place order button
         self.order_button = ttk.Button(self.right_panel, text="Place Order", 
-                                     command=self.place_order)
-        self.order_button.grid(row=4, column=3, columnspan=2, pady=20)
-
+                                      command=self.place_order)
+        self.order_button.grid(row=2, column=0, columnspan=2, pady=20)
+        
+        # Order help text
+        self.help_text = "Format: B$quantity or S$quantity\nExample: B$10"
+        self.help_label = ttk.Label(self.right_panel, text=self.help_text, font=("Helvetica", 10, "italic"))
+        self.help_label.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=5)
+        
         # Initially hide order section completely
         self.hide_order_section()
         
         # Update stocks from server
         self.update_stocks()
 
-    def calculate_total_amount(self):
-        """Calculate and display the total amount for the order"""
-        try:
-            side = self.side_entry.get().strip()
-            amount = self.amount_entry.get().strip()
-            
-            if side.upper() not in ['B', 'S']:
-                messagebox.showerror("Error", "Invalid side. Use 'B' for buy or 'S' for sell")
-                return
-
-            try:
-                amount = int(amount)
-                if amount <= 0:
-                    messagebox.showerror("Error", "Amount must be greater than 0")
-                    return
-            except ValueError:
-                messagebox.showerror("Error", "Amount must be a valid number")
-                return
-
-            # Get current stock price
-            current_price = self.stocks_and_prices.get(self.selected_stock, 0)
-            total_amount = amount * current_price
-
-            # Update total amount display
-            self.total_amount_label.config(text=f"Total Amount: ${total_amount:,.2f}")
-            self.flash_widget(self.total_amount_label, 2)
-
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to calculate total: {str(e)}")
-
     def hide_order_section(self):
         """Hide the entire order entry section"""
         self.order_title_label.grid_remove()
-        self.side_label.grid_remove()
-        self.side_entry.grid_remove()
-        self.amount_label.grid_remove()
-        self.amount_entry.grid_remove()
-        self.calculate_button.grid_remove()
-        self.total_amount_label.grid_remove()
+        self.order_label.grid_remove()
+        self.order_entry.grid_remove()
         self.order_button.grid_remove()
+        self.help_label.grid_remove()
 
     def show_order_section(self):
         """Show the entire order entry section"""
         self.order_title_label.grid()
-        self.side_label.grid()
-        self.side_entry.grid()
-        self.amount_label.grid()
-        self.amount_entry.grid()
-        self.calculate_button.grid()
-        self.total_amount_label.grid()
+        self.order_label.grid()
+        self.order_entry.grid()
         self.order_button.grid()
-        
-        # Add Enter key binding to both entry widgets
-        def handle_enter(event):
-            side = self.side_entry.get().strip()
-            amount = self.amount_entry.get().strip()
-            if side and amount:  # Only place order if both fields have values
-                self.place_order()
-        
-        self.side_entry.bind('<Return>', handle_enter)
-        self.amount_entry.bind('<Return>', handle_enter)
+        self.help_label.grid()
+        self.order_entry.bind('<Return>', lambda event: self.place_order())
 
-
-    def handle_ddos_response(self):
-        try:
-            load_status = self.client.recv_data()
-
-            if load_status == "Server is busy. Please try again later":
-                messagebox.showerror("Server Overload", "Server is currently at maximum capacity. Please try again later.")
-                self.root.destroy()
-                return False
-
-            ddos_status = self.client.recv_data()
-            if ddos_status == "You are blocked due to too many login attempts.":
-                messagebox.showerror("Blocked", "You are blocked due to too many login attempts. Please try again later.")
-                self.root.destroy()
-                return False
-
-            return True
-
-        except Exception as e:
-            messagebox.showerror("Connection Error", f"An error occurred while handling server response: {e}")
-            self.root.destroy()
-            return False
-
-
-    def login(self, event=None):
+    def login(self, event=None):  # Add event parameter to handle both button and key binding
         """Handle login process and transition to main frame"""
         try:
+            # Unbind Return key to prevent errors after frame destruction
+            if hasattr(self, 'login_binding'):
+                self.root.unbind('<Return>', self.login_binding)
+
+            # Get credentials
             username = self.username_entry.get()
             password = self.password_entry.get()
             
@@ -396,26 +317,20 @@ class ClientUI:
                 return
 
             # Connect to server
-            try:
-                self.client.client_socket = socket.socket()
-                self.client.client_socket.connect((self.client.host, self.client.port))
-            except Exception as e:
-                messagebox.showerror("Connection Error", f"Failed to connect to server: {str(e)}")
-                return
-
-            if not self.handle_ddos_response():
-                return
+            self.client.client_socket = socket.socket()
+            self.client.client_socket.connect((self.client.host, self.client.port))
 
             # Send credentials
-            self.client.send_data(username)
-            self.client.send_data(password)
+            self.client.client_socket.send(self.client.e.encrypt_data(username, self.client.server_public_key))
+            time.sleep(0.5)
+            self.client.client_socket.send(self.client.e.encrypt_data(password, self.client.server_public_key))
 
             # Get server response
-            result = self.client.recv_data()
+            result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
+                                            self.client.client_private_key)
 
             if result == '2':
                 messagebox.showerror("Error", "Username already exists. Please enter a new one.")
-                self.client.client_socket.close()
                 return
 
             # Get balance
@@ -427,26 +342,19 @@ class ClientUI:
             else:
                 messagebox.showinfo("Welcome", "Nice to meet you! You are now registered.")
 
-            # Unbind Return key before destroying the frame
-            if hasattr(self, 'login_binding'):
-                self.root.unbind('<Return>', self.login_binding)
-
             # Create main trading frame
             self.create_main_frame(balance)
 
         except Exception as e:
-            if hasattr(self, 'client') and hasattr(self.client, 'client_socket'):
-                self.client.client_socket.close()
-            messagebox.showerror("Error", f"An error occurred: {str(e)}")
+            messagebox.showerror("Connection Error", f"Failed to connect to server: {str(e)}")
 
     def fetch_balance(self):
         try:
-            response = self.client.recv_data()
+            response = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
             
             if response == "1":
-                balance = self.client.recv_data()
+                balance = self.client.e.decrypt_data(self.client.client_socket.recv(4096), self.client.client_private_key)
                 return balance
-                
             elif response == "0":
                 # Create a modal dialog window
                 dialog = tk.Toplevel(self.root)
@@ -498,7 +406,9 @@ class ClientUI:
                 dialog.wait_window()
                 
                 if result[0]:
-                    self.client.send_data(str(result[0]))
+                    self.client.client_socket.send(
+                        self.client.e.encrypt_data(str(result[0]), self.client.server_public_key)
+                    )
                     return result[0]
                 return 0
                 
@@ -512,7 +422,8 @@ class ClientUI:
         Fetch the list of stocks from the server and update the dropdown.
         """
         try:
-            stock_data = self.client.recv_data()
+            encrypted_data = self.client.client_socket.recv(4096)
+            stock_data = self.client.e.decrypt_data(encrypted_data, self.client.client_private_key)
 
             self.stocks_and_prices = ast.literal_eval(stock_data)
 
@@ -530,7 +441,7 @@ class ClientUI:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to update stock list: {str(e)}")
 
-    def choose_stock(self, event=None):
+    def update_stock_price(self, event=None):
         """
         Update the displayed stock price when a stock is selected from the dropdown.
         """
@@ -581,7 +492,7 @@ class ClientUI:
             print(f"Confirming stock selection: {stock_symbol}")
 
             # Send the selected stock to the server
-            self.client.send_data(stock_symbol)
+            self.client.client_socket.send(self.client.e.encrypt_data(stock_symbol, self.client.server_public_key))
 
             # Set stock as selected and store the symbol
             self.stock_selected = True
@@ -595,11 +506,8 @@ class ClientUI:
             self.show_order_section()
                     
             # Focus on the order entry field and flash it
-            self.side_entry.focus_set()
-            self.amount_entry.focus_set()
-
-            self.flash_widget(self.side_entry, 3)
-            self.flash_widget(self.amount_entry, 3)
+            self.order_entry.focus_set()
+            self.flash_widget(self.order_entry, 3)
 
         except Exception as e:
             self.handle_error(f"Failed to confirm stock: {str(e)}")
@@ -670,10 +578,10 @@ class ClientUI:
         # Configure style for the progressbar
         style = ttk.Style()
         style.configure("Custom.Horizontal.TProgressbar", 
-                    troughcolor='#E0E0E0',     
-                    background='#4682b4',       
-                    darkcolor='#4682b4',        
-                    lightcolor='#5294c4')       
+                    troughcolor='#E0E0E0',     # Background color
+                    background='#4682b4',       # Bar color (steel blue)
+                    darkcolor='#4682b4',        # Dark portion of the bar
+                    lightcolor='#5294c4')       # Light portion of the bar
         
         # Create progressbar with custom style
         progress = ttk.Progressbar(loading_window, 
@@ -684,14 +592,16 @@ class ClientUI:
         
         def update_progress(count=0):
             progress['value'] = count
-            if count < 100:
+            if count < 98:  # Reduced from 100 to 98
                 loading_window.after(20, update_progress, count + 2)
-            else:
-                loading_window.destroy()  # First destroy the loading window
-                self.root.after(100, lambda: self.complete_order(order))  # Then complete the order after a short delay
+            elif count == 98:  # Start order completion at 98%
+                self.complete_order(order)  # Complete the order
+                progress['value'] = 100     # Show full progress
+                loading_window.destroy()     # Close the loading window immediately
         
         # Start progress bar
         update_progress()
+    
     
     def place_order(self):
         """Handles placing an order and updates UI accordingly."""
@@ -701,9 +611,12 @@ class ClientUI:
 
         try:
             # Validate order
-            side = self.side_entry.get().strip()
-            amount = self.amount_entry.get().strip()
+            order = self.order_entry.get().strip()
+            if not order or '$' not in order:
+                messagebox.showerror("Error", "Invalid order format. Use 'side$amount' (e.g., B$10 or S$5)")
+                return
 
+            side, amount = order.split('$')
             if side.upper() not in ['B', 'S']:
                 messagebox.showerror("Error", "Invalid side. Use 'B' for buy or 'S' for sell")
                 return
@@ -718,14 +631,12 @@ class ClientUI:
                 return
 
             # Show loading bar and process order
-            order = f"{side}${amount}"
             self.show_loading_bar(order)
 
         except Exception as e:
             messagebox.showerror("System Error", f"An unexpected error occurred: {str(e)}")
             print(f"Unexpected error in place_order: {str(e)}")
-            self.side_entry.delete(0, tk.END)
-            self.amount_entry.delete(0, tk.END)
+            self.order_entry.delete(0, tk.END)
 
     def complete_order(self, order):
         """Completes the order process after loading animation"""
@@ -734,23 +645,25 @@ class ClientUI:
             self.client.client_socket.settimeout(0.1)
             try:
                 while True:
-                    self.client.recv_data()
+                    self.client.client_socket.recv(4096)
             except socket.timeout:
                 pass
             self.client.client_socket.settimeout(None)
 
             # Send the order
-            self.client.send_data(order)
+            self.client.client_socket.send(self.client.e.encrypt_data(order, self.client.server_public_key))
 
             # Wait for order confirmation
-            order_confirmation = self.client.recv_data()
+            order_confirmation = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
+                                                        self.client.client_private_key)
             
             if order_confirmation != "Order received":
                 messagebox.showerror("Order Error", order_confirmation)
                 return
 
             # Wait for transaction result
-            transaction_result = self.client.recv_data()
+            transaction_result = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
+                                                        self.client.client_private_key)
 
             if "Error" in transaction_result:
                 messagebox.showerror("Transaction Failed", transaction_result)
@@ -763,7 +676,8 @@ class ClientUI:
                 self.flash_widget(self.balance_label, 3)
 
             # Get updated price
-            updated_price = self.client.recv_data()
+            updated_price = self.client.e.decrypt_data(self.client.client_socket.recv(4096), 
+                                                    self.client.client_private_key)
 
             try:
                 if not isinstance(ast.literal_eval(updated_price), dict):
@@ -774,9 +688,7 @@ class ClientUI:
                 print(f"Error processing updated price: {e}")
 
             # Clear the order entry
-            self.side_entry.delete(0, tk.END)
-            self.amount_entry.delete(0, tk.END)
-            self.total_amount_label.config(text="Total Amount: $0")  # Add this line to reset the total amount
+            self.order_entry.delete(0, tk.END)
 
             # Show confirmation and ask for another order
             self.show_transaction_confirmation(
@@ -790,96 +702,58 @@ class ClientUI:
         except Exception as e:
             messagebox.showerror("System Error", f"An unexpected error occurred: {str(e)}")
             print(f"Unexpected error in complete_order: {str(e)}")
-            self.side_entry.delete(0, tk.END)
-            self.amount_entry.delete(0, tk.END)
-            self.total_amount_label.config(text="Total Amount: $0")  # Also reset on error
+            self.order_entry.delete(0, tk.END)
         
     def show_transaction_confirmation(self, stock_symbol, order, updated_price, transaction_result):
-        """Shows a modal transaction confirmation dialog."""
-        # Play success sound
-        self.play_sound("C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\success.mp3")
-
+        """
+        Shows a modal transaction confirmation dialog.
+        """
         confirm_window = tk.Toplevel(self.root)
         confirm_window.title("Transaction Complete")
+        confirm_window.geometry("400x300")
         confirm_window.configure(bg="#f0f0f0")
-
+        
+        # Center the window on screen
+        window_width = 400
+        window_height = 300
+        screen_width = confirm_window.winfo_screenwidth()
+        screen_height = confirm_window.winfo_screenheight()
+        center_x = int((screen_width - window_width) / 2)
+        center_y = int((screen_height - window_height) / 2)
+        confirm_window.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
+        
         # Make the window modal
         confirm_window.transient(self.root)
         confirm_window.grab_set()
+        
+        # Prevent clicking on the main window
         confirm_window.focus_set()
-
-        # Configure grid weights
-        confirm_window.grid_columnconfigure(0, weight=1)
-        confirm_window.grid_rowconfigure(1, weight=1)
-
-        # Title at the top
-        title_label = tk.Label(confirm_window, 
-                            text="Transaction Successful", 
-                            font=("Helvetica", 16, "bold"), 
-                            bg="#f0f0f0")
-        title_label.grid(row=0, column=0, pady=20)
-
-        # Details frame
-        details_frame = tk.Frame(confirm_window, bg="#f0f0f0")
-        details_frame.grid(row=1, column=0, sticky="nsew", padx=20)
-        details_frame.grid_columnconfigure(0, weight=1)
-
+        
+        # Add your confirmation content here
+        tk.Label(confirm_window, text="Transaction Successful", font=("Helvetica", 16, "bold"), bg="#f0f0f0").pack(pady=20)
+        
         # Add transaction details
+        details_frame = tk.Frame(confirm_window, bg="#f0f0f0")
+        details_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        tk.Label(details_frame, text=f"Stock: {stock_symbol}", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
+        
         side, quantity = order.split('$')
-        details = [
-            f"Stock: {stock_symbol}",
-            f"Side: {side}",
-            f"Quantity: {quantity}",
-            f"New Price: {updated_price}$"
-        ]
-
-        # Add each detail with proper grid configuration
-        for i, detail in enumerate(details):
-            label = tk.Label(details_frame, 
-                            text=detail, 
-                            font=("Helvetica", 12), 
-                            bg="#f0f0f0", 
-                            anchor="w")
-            label.grid(row=i, column=0, sticky="w", pady=5)
-
-        # Show new balance if available
+        tk.Label(details_frame, text=f"Side: {side}", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
+        tk.Label(details_frame, text=f"Quantity: {quantity}", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
+        tk.Label(details_frame, text=f"New Price: {updated_price}$", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
+        
+        # Extract new balance from transaction result if available
         if ":" in transaction_result:
             new_balance = transaction_result.split(":")[-1].strip()
-            balance_label = tk.Label(details_frame, 
-                                text=f"New Balance: {new_balance}$", 
-                                font=("Helvetica", 12), 
-                                bg="#f0f0f0", 
-                                anchor="w")
-            balance_label.grid(row=len(details), column=0, sticky="w", pady=5)
-
-        # Button frame for the OK button
-        button_frame = tk.Frame(confirm_window, bg="#f0f0f0")
-        button_frame.grid(row=2, column=0, sticky="ew", pady=20)
-        button_frame.grid_columnconfigure(0, weight=1)
-
-        # OK button
-        ok_button = ttk.Button(button_frame, 
-                            text="OK", 
-                            command=confirm_window.destroy, 
-                            width=15)
-        ok_button.grid(row=0, column=0)
+            tk.Label(details_frame, text=f"New Balance: {new_balance}$", font=("Helvetica", 12), bg="#f0f0f0", anchor="w").pack(fill="x", pady=5)
         
-        # Add Enter key binding to the window
-        confirm_window.bind('<Return>', lambda e: confirm_window.destroy())
+        # Add an OK button
+        ok_button = ttk.Button(confirm_window, text="OK", command=confirm_window.destroy)
+        ok_button.pack(pady=20)
         
-        # Focus on the OK button
-        ok_button.focus_set()
-
-        # Set window size and center it
-        confirm_window.update_idletasks()
-        width = 400
-        height = confirm_window.winfo_reqheight() + 50
-        x = (confirm_window.winfo_screenwidth() - width) // 2
-        y = (confirm_window.winfo_screenheight() - height) // 2
-        confirm_window.geometry(f"{width}x{height}+{x}+{y}")
-
-        # Wait for window to be closed
-        confirm_window.wait_window()
+        # Wait for this window to be closed before continuing
+        self.root.wait_window(confirm_window)
 
     def reset_stock_selection(self):
         """
@@ -890,7 +764,6 @@ class ClientUI:
         self.stock_combobox.current(0)  # Reset to placeholder
         self.select_stock_button.config(state="normal")
         self.share_price_label.config(text="Select a stock")
-        self.total_amount_label.config(text="Total Amount: $0")  # Add this line to reset the total amount
         self.hide_order_section()
 
     def ask_for_another_order(self):
@@ -911,14 +784,14 @@ class ClientUI:
         Fades out the UI before exiting, ensuring the logo remains centered with a 2-second delay.
         """
         
-        self.play_sound("C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\intro.mp3")
+        self.play_intro_sound()
         
         # Create a fullscreen frame to cover the entire window
         fade_frame = tk.Frame(self.root, bg=BG_COLOR)
         fade_frame.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         # Load and resize the logo image
-        original_image = Image.open("C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo.png").convert("RGBA")
+        original_image = Image.open("nExchange_logo.png").convert("RGBA")
         resized_image = original_image.resize((768, 503), Image.Resampling.LANCZOS)
         logo_image = resized_image.copy()
 
@@ -959,13 +832,12 @@ class ClientUI:
 
 
 if __name__ == "__main__":
-    from Client import Client
+    from client import Client
     
     HOST = socket.gethostname()
     PORT = 5000
+    client = Client(HOST, PORT)
 
     root = tk.Tk()
-    client = Client(HOST, PORT, root)
-
     app = ClientUI(root, client)
     root.mainloop()

@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Define colors for better aesthetics
 BG_COLOR = "#f0f8ff"  # Light blue background
-HEADER_BG = "#4682b4"  # Steel blue for headers
+HEADER_BG = "#4682b4"  # Steel blue for headerss
 HEADER_FG = "#ffffff"  # White text for headers
 FONT = ("Helvetica", 12)
 
@@ -64,7 +64,7 @@ class ServerUI:
                 logo_frame.after(50, step_fade)  # Schedule the next step
 
         step_fade()  # Start the fade animation
-        
+
     # Function to play the intro sound
     def play_intro_sound(self):
         pygame.mixer.init()
@@ -121,6 +121,8 @@ class ServerUI:
         graph_window.deiconify()
         graph_window.lift()
 
+
+
     def show_stocks_table(self, root, stocks, stock_prices_history):
         # Creates a space (a Frame) to hold the stock table.
         stock_frame = Frame(root, width=600, height=300, bg=BG_COLOR)
@@ -129,7 +131,7 @@ class ServerUI:
 
         # Adds a title "Stocks" above the table.
         stock_label = Label(root, text="Stocks", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
-        stock_label.place(relx=0.76, rely=0.36, anchor="ne") # Positions the label above the frame.
+        stock_label.place(relx=0.765, rely=0.36, anchor="ne") # Positions the label above the frame.
 
         # Defines the column name for the table.
         columns = ("Stock Name",)
@@ -159,7 +161,9 @@ class ServerUI:
         scrollbar.pack(side="right", fill="y")
         stock_tree.pack(side="left", fill="both", expand=True)
 
-    def show_transactions_table(self, root):
+
+
+    def show_transactions(self, root):
         # Add a title "Transactions" above the table.
         transactions_label = Label(root, text="Transactions", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
         transactions_label.pack(anchor="n", pady=10)
@@ -167,7 +171,7 @@ class ServerUI:
         # Create a space (a Frame) to hold the transactions table.
         top_frame = Frame(root, width=1250, height=200, bg=BG_COLOR)
         top_frame.pack_propagate(False)
-        top_frame.place(x=340, rely=0.07) # Position the frame at the top of the window.
+        top_frame.place(x=15, rely=0.07)
 
         # Define the column names for the table.
         columns = ("Username", "Client ID", "Side", "Stock Symbol", "Share Price", "Amount", "Time Stamp")
@@ -194,92 +198,65 @@ class ServerUI:
         tree.pack(side="left", fill="both", expand=True)
 
         return tree  # Return the table so it can be updated later.
+    
+    
 
-    def show_all_clients_table(self, root, dict_of_all_clients, dict_of_active_clients):
-        # Ensure dict_of_active_clients is a dictionary
-        if not isinstance(dict_of_active_clients, dict):
-            dict_of_active_clients = {}
 
+    def show_connected_people(self, root, dict_of_connected_people):
         # Create a space (a Frame) to hold the connected people table.
         top_frame = Frame(root, width=600, height=300, bg=BG_COLOR)
-        top_frame.pack_propagate(False)  # Keep the frame from resizing.
-        top_frame.place(relx=0.27, rely=0.41, anchor="n")  # Position the frame.
+        top_frame.pack_propagate(False) # Keep the frame from resizing.
+        top_frame.place(relx=0.26, rely=0.41, anchor="n") # Position the frame.
 
         # Add a title "Connected People" above the table.
-        connected_people_label = Label(root, text="All Connected Clients", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
-        connected_people_label.place(relx=0.34, rely=0.36, anchor="ne")  # Position the title.
+        connected_people_label = Label(root, text="Connected People", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
+        connected_people_label.place(relx=0.34, rely=0.36, anchor="ne") # Position the title.
 
         # Define the column names for the table.
-        columns = ("IP Address", "Port", "Username", "DDoS Status", "Connection Status")
+        columns = ("IP Address", "Port", "Username")
         # Create the table (a Treeview widget) to display the connected people.
         tree = ttk.Treeview(top_frame, columns=columns, show="headings", height=5)
 
         # Set up the headings for each column.
         for col in columns:
-            tree.heading(col, text=col)  # Set the text for the heading.
-            tree.column(col, width=100, anchor="center")  # Set the width and alignment.
-
-        # Define tags for coloring rows
-        tree.tag_configure("accepted", background="#d4edda")  # Light green for accepted
-        tree.tag_configure("blocked", background="#f8d7da")  # Light red for blocked
+            tree.heading(col, text=col) # Set the text for the heading.
+            tree.column(col, width=100, anchor="center") # Set the width and alignment.
 
         # Add each connected person to the table.
-        for (ip, port, username), ddos_status in dict_of_all_clients.items():
-            tag = "accepted" if ddos_status.lower() == "accepted" else "blocked"
-            
-            if any(ip == key[0] for key in dict_of_active_clients.keys()):
-                # If the IP is in the active clients, set the connection status to "Active"
-                connection_status = "Online"
-            else:
-                # If the IP is not in the active clients, set the connection status to "Offline"
-                connection_status = "Offline"
-                
-            tree.insert("", "end", values=(ip, port, username, ddos_status, connection_status), tags=(tag,))  # Add the data with the appropriate tag.
+        for ip_and_port, username in dict_of_connected_people.items():
+            ip, port = ip_and_port # Get the IP and port from the key.
+            tree.insert("", "end", values=(ip, port, username)) # Add the data to the table.
 
         # Add a scrollbar to the table, in case there are too many connected people to fit.
         scrollbar = ttk.Scrollbar(top_frame, orient="vertical", command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set)  # Link the scrollbar to the table.
+        tree.configure(yscrollcommand=scrollbar.set) # Link the scrollbar to the table.
 
         # Positions the scrollbar and the table within the frame.
-        scrollbar.pack(side="right", fill="y")  # Place the scrollbar on the right.
-        tree.pack(side="left", fill="both", expand=True)  # Place the table and make it fill the space.
+        scrollbar.pack(side="right", fill="y") # Place the scrollbar on the right.
+        tree.pack(side="left", fill="both", expand=True) # Place the table and make it fill the space.
 
-        return tree  # Give back the table so we can use it later.
-    
+        return tree # Give back the table so we can use it later.
+
+
     def initialize_ui_references(self, connected_clients_widget, transactions_widget):
+        
         # Initializes the global references to the Treeview widgets.
         self.connected_clients_tree = connected_clients_widget
         self.transactions_tree = transactions_widget
 
-    def refresh_all_clients_table(self, dict_of_all_clients, dict_of_active_clients):
-        # Ensure dict_of_active_clients is a dictionary
-        if not isinstance(dict_of_active_clients, dict):
-            dict_of_active_clients = {}
-
+    def refresh_connected_clients(self, connected_clients_list):
         # Refreshes the connected clients table.
-
+    
         # Clears the table
         for item in self.connected_clients_tree.get_children():
             self.connected_clients_tree.delete(item)
 
-        # Define tags for coloring rows
-        self.connected_clients_tree.tag_configure("accepted", background="#d4edda")  # Light green
-        self.connected_clients_tree.tag_configure("blocked", background="#f8d7da")  # Light red
-
         # Inserts updated data
-        for (ip, port, username), ddos_status in dict_of_all_clients.items():
-            tag = "accepted" if ddos_status.lower() == "accepted" else "blocked"
-            
-            if any(ip == key[0] for key in dict_of_active_clients.keys()):
-                # If the IP is in the active clients, set the connection status to "Active"
-                connection_status = "Online"
-            else:
-                # If the IP is not in the active clients, set the connection status to "Offline"
-                connection_status = "Offline"
-                
-            self.connected_clients_tree.insert("", "end", values=(ip, port, username, ddos_status, connection_status), tags=(tag,))
-    
+        for ip, port, username in connected_clients_list:
+            self.connected_clients_tree.insert("", "end", values=(ip, port, username))
+
     def refresh_transactions_table(self):
+        
         # Refreshes the transactions table.
         
         # Clear the existing rows
@@ -294,6 +271,7 @@ class ServerUI:
             self.transactions_tree.insert("", "end", values=transaction)
 
     def refresh_stock_graphs(self, stock_prices_dict):
+        
         # Updates stock graphs for each stock symbol.
         
         for stock_symbol, prices in stock_prices_dict.items():
@@ -312,8 +290,9 @@ class ServerUI:
                 # Refresh the canvas to display the updated graph
                 canvas.draw()
     
+    
     # Function to show the combined UI            
-    def show_combined_ui(self, dict_of_all_clients, dict_of_active_clients, stocks, stock_prices_history):
+    def show_combined_ui(self, dict_of_connected_people, stocks, stock_prices_history):
         import ctypes # For changing the taskbar icon
 
         root = Tk("nExchange Dashboard")
@@ -337,19 +316,16 @@ class ServerUI:
         self.configure_styles()
 
         # Function to initialize and show all UI components after the logo fades out
-        def initialize_ui(container=None):
-            # If no container is provided, use root
-            target = container if container else root
-            
+        def initialize_ui():
             # Create the connected clients and transactions tables
-            self.connected_clients_tree = self.show_all_clients_table(target, dict_of_all_clients, dict_of_active_clients)
-            self.transactions_tree = self.show_transactions_table(target)
+            self.connected_clients_tree = self.show_connected_people(root, dict_of_connected_people)
+            self.transactions_tree = self.show_transactions(root)
 
             # Initialize references
             self.initialize_ui_references(self.connected_clients_tree, self.transactions_tree)
 
             # Show the stock table
-            self.show_stocks_table(target, stocks, stock_prices_history)
+            self.show_stocks_table(root, stocks, stock_prices_history)
 
         # Show the logo and transition to the main UI
         self.show_logo_and_transition(root, initialize_ui)
@@ -379,5 +355,5 @@ if __name__ == "__main__":
         "TSLA": [720, 725, 730, 735, 740, 745, 750, 755, 760, 765]
     }
 
-    server_ui = ServerUI(lambda: None)
+    server_ui = ServerUI()
     server_ui.show_combined_ui(dict_of_connected_people, stocks, stock_prices_history)

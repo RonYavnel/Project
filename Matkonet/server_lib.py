@@ -18,7 +18,7 @@ class Server_Lib:
             username = self.e.decrypt_data(conn.recv(4096), server_private_key)
             
             # Receive and decrypt the password, then hash it
-            hashed_password = self.tls.hash_data(self.e.decrypt_data(conn.recv(4096), server_private_key))
+            hashed_password = self.e.hash_data(self.e.decrypt_data(conn.recv(4096), server_private_key))
 
             while True:
                 if (not self.is_user_exists(username, hashed_password) and self.is_username_exists(username)): 
@@ -27,7 +27,7 @@ class Server_Lib:
                     
                     # Receive and decrypt the new username and password
                     username = self.e.decrypt_data(conn.recv(4096), server_private_key)
-                    hashed_password = self.tls.hash_data(self.e.decrypt_data(conn.recv(4096), server_private_key))
+                    hashed_password = self.e.hash_data(self.e.decrypt_data(conn.recv(4096), server_private_key))
                 
                 elif (self.is_user_exists(username, hashed_password)):  # If the user exists
                     conn.send(self.e.encrypt_data("1", client_public_key))
@@ -45,16 +45,16 @@ class Server_Lib:
     # If user exists - update his ip, port and last_seen
     # If not exists - get balance from him and insert his details
     # Eventually, returns the balance of the client
-    def handle_user_balance(self, conn, username, hashed_password, server_private_key, client_public_key):
+    def handle_user_balance(self, conn, username, password, server_private_key, client_public_key):
         try:
-            if self.is_user_exists(username, hashed_password):
+            if self.is_user_exists(username, password):
                 conn.send(self.e.encrypt_data("1", client_public_key))
                 
                 # Sends confirmation to the client
-                balance = self.get_user_balance(username, hashed_password)  # Gets client's balance
+                balance = self.get_user_balance(username, password)  # Gets client's balance
                 print(balance)
-                self.tls.update_ip_and_port(conn, username, hashed_password)  # Updates IP and port
-                self.update_last_seen(username, hashed_password)  # Updates last_seen
+                self.tls.update_ip_and_port(conn, username, password)  # Updates IP and port
+                self.update_last_seen(username, password)  # Updates last_seen
                 time.sleep(0.1)
                 conn.send(self.e.encrypt_data(str(balance), client_public_key))  # Sends the client his balance
 
@@ -64,9 +64,9 @@ class Server_Lib:
                 balance = int(self.e.decrypt_data(conn.recv(4096), server_private_key))  # Gets balance from the client
                 self.tls.insert_row(    # Inserts the details of the new client into the database
                     "users", 
-                    "(username, hashed_password, ip, port, last_seen, balance, ddos_status)", 
-                    "(%s, %s, %s, %s, %s, %s, %s)",
-                    (username, hashed_password, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance, "accepted")
+                    "(username, password, ip, port, last_seen, balance)", 
+                    "(%s, %s, %s, %s, %s, %s)",
+                    (username, password, conn.getpeername()[0], conn.getpeername()[1], str(datetime.now()), balance)
                 )
             return balance  # Returns the balance of the client
 
@@ -76,9 +76,9 @@ class Server_Lib:
 
 
     # Funtion that update all the data about the client and the share after transaction
-    def update_all_data(self, conn, username, hashed_password, balance, side, amount, stock_symbol, share_price, client_public_key):
-        self.update_last_seen(username, hashed_password) # Updates last_seen time of the client
-        self.update_balance(username, hashed_password, balance) # Updates client's balance
+    def update_all_data(self, conn, username, password, balance, side, amount, stock_symbol, share_price, client_public_key):
+        self.update_last_seen(username, password) # Updates last_seen time of the client
+        self.update_balance(username, password, balance) # Updates client's balance
         if side.upper() == "S":
             self.update_num_of_shares(stock_symbol, amount) # If shares are sold - add those shares to the num of free shares
         else:
@@ -93,11 +93,11 @@ class Server_Lib:
         
                 
     # Function that checks if username with given name and password exists
-    def is_user_exists(self, username, hashed_password):
+    def is_user_exists(self, username, password):
         return self.tls.fetchone_functions_two_params(
-                                              "SELECT COUNT(*) FROM users WHERE username = %s AND hashed_password = %s",
+                                              "SELECT COUNT(*) FROM users WHERE username = %s AND password = %s",
                                               username,
-                                              hashed_password) > 0
+                                              password) > 0
         
     # Function that checks if username with given name exists
     def is_username_exists(self, username):
@@ -106,27 +106,27 @@ class Server_Lib:
                                             username) > 0
         
     # Function that updates the "last_seen" value in the users table for now.
-    def update_last_seen(self, username, hashed_password):
+    def update_last_seen(self, username, password):
         self.tls.commit_functions_three_params(
-                                      "UPDATE users SET Last_seen = %s WHERE username = %s AND hashed_password = %s",
+                                      "UPDATE users SET Last_seen = %s WHERE username = %s AND password = %s",
                                       datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                                       username,
-                                      hashed_password)
+                                      password)
         
-    # Function that gets a username and hashed_password and updates his balance  
-    def update_balance(self, username, hashed_password, new_balance):
+    # Function that gets a username and password and updates his balance  
+    def update_balance(self, username, password, new_balance):
         self.tls.commit_functions_three_params(
-                                      "UPDATE users SET Balance = %s WHERE username = %s AND hashed_password = %s",
+                                      "UPDATE users SET Balance = %s WHERE username = %s AND password = %s",
                                       new_balance,
                                       username,
-                                      hashed_password)
+                                      password)
         
-    # Function that gets a username and hashed_password and returns this user's balance  
-    def get_user_balance(self,  username, hashed_password):
+    # Function that gets a username and password and returns this user's balance  
+    def get_user_balance(self,  username, password):
         return self.tls.fetchone_functions_two_params( 
-                                              "SELECT balance FROM users WHERE username = %s AND hashed_password = %s", 
+                                              "SELECT balance FROM users WHERE username = %s AND password = %s", 
                                               username, 
-                                              hashed_password)
+                                              password)
 
     # Function that gets a stock symbol and updates the pric of a single share
     def update_current_price(self, stock_symbol, new_price):
@@ -183,25 +183,9 @@ class Server_Lib:
                                     stock_symbol)
         
     
-    # Function that gets a username and hashed_password and returns the client_id of the user  
-    def get_client_id(self, username, hashed_password):
+    # Function that gets a username and password and returns the client_id of the user  
+    def get_client_id(self, username, password):
         return self.tls.fetchone_functions_two_params(
-                                              "SELECT client_id FROM Users WHERE username = %s AND hashed_password = %s",
+                                              "SELECT client_id FROM Users WHERE username = %s AND password = %s",
                                               username,
-                                              hashed_password)
-
-    def get_ddos_status(self, ip):
-        return self.tls.fetchone_functions_one_param(
-                                            "SELECT ddos_status FROM Users WHERE ip = %s",
-                                            ip)
-    
-    def update_ddos_status(self, ip, status):
-        self.tls.commit_functions_two_params(
-                                              "UPDATE Users SET ddos_status = %s WHERE ip = %s",
-                                              status,
-                                              ip)
-        
-    def is_ip_exists(self, ip):
-        return self.tls.fetchone_functions_one_param(
-                                              "SELECT COUNT(*) FROM Users WHERE ip = %s",
-                                              ip) > 0
+                                              password)
