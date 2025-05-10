@@ -4,5 +4,7 @@ import socket
 HOST = socket.gethostname()
 PORT = 5000
 
-MAX_CLIENTS = 5
+MAX_CLIENTS = 10
 MAX_CONNECTIONS_FROM_CLIENT = 3
+
+DATA_DELIMITER = "$$$"

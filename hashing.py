@@ -28,11 +28,11 @@ def insert_value_to_all_rows_in_table(mydb, tableName, columnName, value):
     mycursor.execute(sql, (value,))
     mydb.commit()
 
-def change_ddos_status(mydb, username, status):
+def change_ddos_status(mydb, ip, status):
     mycursor = mydb.cursor()
-    sql = "UPDATE users SET ddos_status = %s WHERE username = %s"
-    mycursor.execute(sql, (status, username))
+    sql = "UPDATE users SET ddos_status = %s WHERE ip = %s"
+    mycursor.execute(sql, (status, ip))
     mydb.commit()
 
 
-change_ddos_status(tls.mydb, "test", "accepted")
+change_ddos_status(tls.mydb, "192.168.68.61", "accepted")

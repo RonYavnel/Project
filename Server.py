@@ -1,8 +1,7 @@
 import socket
 import threading
 from datetime import datetime
-from time import sleep
-from server_constants import *
+from configuration import *
 from server_lib import Server_Lib
 from db_tools import *
 from server_UI import ServerUI
@@ -15,15 +14,17 @@ class Server:
         self.port = port
         self.server_socket = None
         self.ddos_dict = {} # ip: number of connections
-        self.dict_of_all_clients = {} # (ip, port, username): ddos_status
+        self.dict_of_all_clients = {} # (ip, username): ddos_status
         self.dict_of_active_clients = {}  # (ip, port): username
         self.stock_prices_history = {}  # stock_symbol: [list of stock prices]
         self.mutex = threading.Lock()
         self.e = Encryption()
         self.tls = DB_Tools("stocktradingdb")
-        self.s_lib = Server_Lib()
+        self.s_lib = Server_Lib(self)
         self.ui = ServerUI(self.stop_server)  # Pass the stop_server callback to the UI
         self.e.generate_keys()
+        self.server_private_key = self.e.load_server_private_key()
+        self.client_public_key = self.e.load_client_public_key()
 
     def setup_stock_prices_history(self):
         for stock in self.tls.get_all_column_values("stocks", "symbol"):
@@ -33,10 +34,9 @@ class Server:
         # Initialize the list of all clients with their IP, port, and DDoS status
         for row in self.tls.get_all_rows("users"):
             ip = row[3]
-            port = row[4]
             username = row[0]
             ddos_status = row[7]
-            self.dict_of_all_clients[(ip, port, username)] = ddos_status
+            self.dict_of_all_clients[(ip, username)] = ddos_status
 
     def init_server(self):
         # Initiate a socket
@@ -44,6 +44,29 @@ class Server:
         self.server_socket.bind((self.host, self.port))
         # Wait for connections from clients
         self.server_socket.listen(20)
+
+    def send_data(self, conn, data):
+        """Send data to the client."""
+        try:
+            conn.send(self.e.encrypt_data(data+DATA_DELIMITER, self.client_public_key))
+        except Exception as e:
+            print(f"Error sending data: {e}")
+
+    def recv_data(self, conn, received_data):
+        # Receive data from the server
+        if not DATA_DELIMITER in received_data:
+            # read more data from the socket
+            data = self.e.decrypt_data(conn.recv(4096), self.server_private_key)
+            if not data:
+                raise ConnectionError("Connection closed by server")
+            # add new data to the received data
+            received_data += data
+            # if still no delimiter - raise an error
+            if not DATA_DELIMITER in received_data:
+                raise ConnectionError("Missing delimiter in received data")
+        data, _, received_data = received_data.partition(DATA_DELIMITER)
+        
+        return data, received_data
 
     def handle_connections(self):
         self.init_server()
@@ -56,11 +79,11 @@ class Server:
                     print(f"Total number of connections: {total_num_of_connections}")
                     if total_num_of_connections >= MAX_CLIENTS:
                         print("Maximum number of clients reached. Connection rejected.")
-                        conn.send(self.e.encrypt_data("Server is busy. Please try again later.", self.e.load_client_public_key()))
+                        self.send_data(conn, "Server is busy. Please try again later.")
                         conn.close()
                         continue
                     else:
-                        conn.send(self.e.encrypt_data("The server is not overloaded and accepts connections.", self.e.load_client_public_key()))
+                        self.send_data(conn, "The server is not overloaded and accepts connections.")
 
                     # Check for DDoS attacks
                     if not self.ddos_check(conn):
@@ -95,58 +118,73 @@ class Server:
                               ip VARCHAR(255), port INT, last_seen DATETIME, balance INT, ddos_status VARCHAR(255))""")
 
     def ddos_check(self, client_socket):
-        # Function to check for DDoS attacks
+        """Check for DDoS attacks and manage connection limits."""
+        print("self.ddos_dict is: ", self.ddos_dict)
         ip = client_socket.getpeername()[0]
-        if ip in self.ddos_dict:
-            if self.ddos_dict[ip] >= MAX_CONNECTIONS_FROM_CLIENT:
-                # Check if the IP is registered in the users table
-                if self.s_lib.is_ip_exists(ip):
-                    ddos_status = self.s_lib.get_ddos_status(ip)
-                    print("ddos status:", ddos_status)
-                    if ddos_status == "blocked":
-                        # Update the ddos_status to "accepted" for this IP
-                        print(f"IP {ip} is registered in DB. DDoS status is already 'blocked'.")
 
-                    else:
-                        # Update the ddos_status to "blocked" for this IP
-                        self.s_lib.update_ddos_status(ip, "blocked")
-                        self.ui.refresh_all_clients_table(self.dict_of_all_clients, self.dict_of_active_clients)
-                        print(f"IP {ip} is registered in DB. DDoS status updated to 'blocked'.")
-                
-                # Send the blocked message to the client
-                client_socket.send(self.e.encrypt_data("You are blocked due to too many login attempts.", self.e.load_client_public_key()))
+        # Check if the IP exists in the database
+        if self.s_lib.is_ip_exists(ip):
+            ddos_status = self.s_lib.get_ddos_status(ip)
+            print(f"IP {ip} has DDoS status: {ddos_status}")
+
+            if ddos_status == "blocked":
+                # If the IP is already blocked, notify the client and close the connection
+                self.send_data(client_socket, "You are blocked due to too many login attempts.")
                 print(f"DDoS attack detected from {ip}. Closing connection.")
-                sleep(1)  # Give the client time to process the message
-                client_socket.close()  # Close the connection after sending the message
+                client_socket.close()
                 return False
-            else:
-                self.ddos_dict[ip] += 1
-                client_socket.send(self.e.encrypt_data("Connection accepted", self.e.load_client_public_key()))
+
+        # Update the connection count in ddos_dict
+        if ip in self.ddos_dict:
+            self.ddos_dict[ip] += 1
         else:
-            # First connection from this IP
             self.ddos_dict[ip] = 1
-            client_socket.send(self.e.encrypt_data("Connection accepted", self.e.load_client_public_key()))  # Send acknowledgment
+
+        # Check if the number of connections exceeds the allowed limit
+        if self.ddos_dict[ip] > MAX_CONNECTIONS_FROM_CLIENT:
+            print(f"IP {ip} exceeded the maximum allowed connections. Blocking IP.")
+            # Update the ddos_status in the database to "blocked"
+            self.s_lib.update_ddos_status(ip, "blocked")
+            self.ui.refresh_all_clients_table(self.dict_of_all_clients, self.dict_of_active_clients)
+
+            # Notify the client and close the connection
+            self.send_data(client_socket, "You are blocked due to too many login attempts.")
+            print(f"DDoS attack detected from {ip}. Closing connection.")
+            client_socket.close()
+            return False
+
+        # If the IP is not blocked, allow the connection
+        self.send_data(client_socket, "Connection accepted")
+        print(f"Connection from {ip} accepted.")
         return True
 
     def deal_maker(self, conn):
         try:
-            server_private_key = self.e.load_server_private_key()
-            client_public_key = self.e.load_client_public_key()
+
+            received_data = ""  # Initialize received_data to an empty string
 
             print("in deal_maker")
 
-            username, hashed_password = self.s_lib.handle_user_connection(conn, server_private_key, client_public_key)
+            ip = conn.getpeername()[0]
+            port = conn.getpeername()[1]
+            print("ip is: ", ip, "port is: ", port)
+
+            username, hashed_password, received_data = self.s_lib.handle_user_connection(conn, received_data)
             print("username is: ", username)
 
-            if username not in self.dict_of_all_clients:
-                self.dict_of_all_clients[conn.getpeername()[0], conn.getpeername()[1], username] = self.s_lib.get_ddos_status(conn.getpeername()[0])
+            if username is None:
+                return  # Exit if username is None - means that the user has disconnected
 
 
-            self.dict_of_active_clients[conn.getpeername()] = username
-            print(self.dict_of_active_clients)
+            self.dict_of_active_clients[(ip, port)] = username
+            print("dict_of_active_clients: ", self.dict_of_active_clients)
 
-            balance = self.s_lib.handle_user_balance(conn, username, hashed_password, server_private_key, client_public_key)
+            balance, received_data = self.s_lib.handle_user_balance(conn, username, hashed_password, received_data)
 
+            if (ip, username) not in self.dict_of_all_clients:
+                self.dict_of_all_clients[ip, username] = self.s_lib.get_ddos_status(ip)
+
+            print("dict_of_active_clients: ", self.dict_of_active_clients)
             with self.mutex:
                 self.ui.refresh_all_clients_table(self.dict_of_all_clients, self.dict_of_active_clients)
                 
@@ -159,10 +197,11 @@ class Server:
                     stocks_and_prices[list_of_stocks[i]] = list_of_current_prices[i]
                 print("stocks_and_prices is: ", stocks_and_prices)
 
-                conn.send(self.e.encrypt_data(str(stocks_and_prices), client_public_key))
+                self.send_data(conn, str(stocks_and_prices))
 
                 # Ask client for a stock symbol before each order
-                stock_symbol = self.e.decrypt_data(conn.recv(4096), server_private_key).upper()
+                stock_symbol, received_data = self.recv_data(conn, received_data)
+                stock_symbol = stock_symbol.upper()
 
                 share_price = stocks_and_prices[stock_symbol]
                 
@@ -174,10 +213,10 @@ class Server:
 
                 while True:  # Inner loop to handle order retries
                     # Receive order from client
-                    order = self.e.decrypt_data(conn.recv(4096), server_private_key)
+                    order, received_data = self.recv_data(conn, received_data)
 
                     if not order:
-                        conn.send(self.e.encrypt_data("Error: the order input is empty", client_public_key))
+                        self.send_data(conn, "Error: the order input is empty")
                         continue  # Stay in inner loop waiting for corrected order
 
                     print("Order is:", order)
@@ -188,26 +227,20 @@ class Server:
                             param = order.split(delimiter)
 
                             if len(param) != 2:
-                                conn.send(self.e.encrypt_data("Error: Incorrect format. Use 'side$amount' format.", client_public_key))
+                                self.send_data(conn, "Error: Incorrect format. Use 'side$amount' format.")
                                 continue  # Stay in inner loop waiting for corrected order
 
                             if not param[1].isdigit():
-                                conn.send(self.e.encrypt_data("Error: Amount must be a numeric value.", client_public_key))
-                                continue  # Stay in inner loop waiting for corrected order
+                                self.send_data(conn, "Error: Amount must be a numeric value.")
+                                continue
 
                             side, amount = param[0].upper(), int(param[1])
 
                             if side.upper() not in ["B", "S"]:
-                                conn.send(self.e.encrypt_data("Error: Invalid side parameter. Use 'B' for buy or 'S' for sell.", client_public_key))
-                                continue  # Stay in inner loop waiting for corrected order
-                            
-                            # Simulate a delay in processing the order
-                            sleep(0.5)
-                            
-                            conn.send(self.e.encrypt_data("Order received", client_public_key))
-                            
-                            # Simulate a delay in processing the order
-                            sleep(1)
+                                self.send_data(conn, "Error: Invalid side parameter. Use 'B' for buy or 'S' for sell.")
+                                continue  
+
+                            self.send_data(conn, "Order received")
 
                             deal = share_price * amount
 
@@ -224,7 +257,7 @@ class Server:
                                 adjustment = int((amount * share_price) * 0.01)
                                 share_price = max(1, share_price - adjustment)
 
-                                conn.send(self.e.encrypt_data(f"Sale completed. Your updated balance: {balance}", client_public_key))
+                                self.send_data(conn, f"Sale completed. Your updated balance: {balance}")
 
                             else:
                                 if balance >= deal:
@@ -240,39 +273,45 @@ class Server:
                                     adjustment = int((amount * share_price) * 0.01)
                                     share_price += adjustment
 
-                                    conn.send(self.e.encrypt_data(f"Purchase successful. New balance: {balance}", client_public_key))
+                                    self.send_data(conn, f"Purchase successful. New balance: {balance}")
                                 else:
-                                    conn.send(self.e.encrypt_data(f"Error: Insufficient balance for this purchase. Your balance is: {balance}", client_public_key))
-
+                                    self.send_data(conn, f"Error: Insufficient balance for this purchase. Your balance is: {balance}")
                             self.stock_prices_history[stock_symbol].append(share_price)
 
                             if len(self.stock_prices_history[stock_symbol]) > 15:
                                 self.stock_prices_history[stock_symbol].pop(0)
 
                             print(self.stock_prices_history)
-                            sleep(1)
                             self.ui.refresh_transactions_table()
                             self.ui.refresh_stock_graphs({stock_symbol: self.stock_prices_history[stock_symbol]})
 
                             # Break inner loop after a successful order
                             break
 
-                        except ValueError:
-                            conn.send(self.e.encrypt_data("Error: Invalid data format.", client_public_key))
+                        except ValueError as e:
+                            self.send_data(conn, "Error: Invalid data format.")
+                            print("wrong order format", e)
                             continue  # Stay in inner loop waiting for corrected order
 
-                self.s_lib.update_all_data( conn, username, hashed_password, balance, side, amount, stock_symbol, share_price, client_public_key)
+                self.s_lib.update_all_data( conn, username, hashed_password, balance, side, amount, stock_symbol, share_price)
 
         except ConnectionResetError:
             print(f"Connection with {conn} was forcibly aborted")
-            self.ddos_dict[conn.getpeername()[0]] -= 1
 
         finally:
-            self.dict_of_active_clients.pop(conn.getpeername())
-            dict_of_active_clients = [(ip, port, user) for (ip, port), user in self.dict_of_active_clients.items()]
-            self.ui.refresh_all_clients_table(self.dict_of_all_clients, dict_of_active_clients)
-            print(self.dict_of_active_clients)
-            self.ddos_dict[conn.getpeername()[0]] -= 1
+            peer = conn.getpeername()
+            if peer in self.dict_of_active_clients:
+                print(f"Removing {peer} from active clients")
+                self.dict_of_active_clients.pop(peer)
+                dict_of_active_clients = [(ip, port, user) for (ip, port), user in self.dict_of_active_clients.items()]
+                self.ui.refresh_all_clients_table(self.dict_of_all_clients, dict_of_active_clients)
+            print("dict of active clients: ", self.dict_of_active_clients)
+
+            if ip in self.ddos_dict:
+                self.ddos_dict[ip] -= 1
+                if self.ddos_dict[ip] == 0:
+                    del self.ddos_dict[ip]  # Remove the IP from ddos_dict if no active connections remain
+
             conn.close()
             print(f"Connection with {conn} closed")
 
@@ -302,5 +341,5 @@ class Server:
         self.handle_connections()
 
 if __name__ == '__main__':
-    server = Server(HOST, PORT)
+    server = Server(SERVER_IP, PORT)
     server.run_whole_server()

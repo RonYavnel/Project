@@ -1,0 +1,8 @@
+SERVER_IP = "192.168.68.61"  
+PORT = 5000
+
+MAX_CLIENTS = 10
+MAX_CONNECTIONS_FROM_CLIENT = 3
+
+# Delimiter for data packets
+DATA_DELIMITER = "$$$"
