@@ -97,7 +97,6 @@ class ClientUI:
                     next_screen_callback()
                     
                 except Exception as e:
-                    messagebox.showerror("Connection Error", f"Failed to connect to server: {str(e)}")
                     self.root.quit()  # Signal mainloop to stop
                     return
             else:
@@ -497,12 +496,12 @@ class ClientUI:
                 def validate():
                     try:
                         value = int(entry.get())
-                        if 0 < value <= 1000000:
+                        if value > 0:
                             result[0] = value
                             dialog.destroy()
                         else:
                             entry.delete(0, tk.END)
-                            messagebox.showerror("Error", "Please enter a value between 1 and 1,000,000")
+                            messagebox.showerror("Error", "Please enter a valid posotove number value")
                     except ValueError:
                         entry.delete(0, tk.END)
                         messagebox.showerror("Error", "Please enter a valid number")

@@ -155,9 +155,10 @@ class Server_Lib:
         
     # Function that gets a stock symbol and returns the current price of a single share
     def get_current_share_price(self, stock_symbol):
-        return self.tls.fetchone_functions_one_param(
+        price = self.tls.fetchone_functions_one_param(
                                              "SELECT current_price FROM Stocks WHERE symbol = %s",
                                              stock_symbol)
+        return int(price)
         
     # Function that gets a stock symbol and returns the highest price of a single share
     def get_highest_share_price(self, stock_symbol):
