@@ -119,44 +119,56 @@ class Server:
 
     def ddos_check(self, client_socket):
         """Check for DDoS attacks and manage connection limits."""
-        print("self.ddos_dict is: ", self.ddos_dict)
-        ip = client_socket.getpeername()[0]
+        try:
+            with self.mutex:
+                print("self.ddos_dict is: ", self.ddos_dict)
+            
+            ip = client_socket.getpeername()[0]
 
-        # Check if the IP exists in the database
-        if self.s_lib.is_ip_exists(ip):
-            ddos_status = self.s_lib.get_ddos_status(ip)
-            print(f"IP {ip} has DDoS status: {ddos_status}")
+            # Check if the IP exists in the database
+            if self.s_lib.is_ip_exists(ip):
+                ddos_status = self.s_lib.get_ddos_status(ip)
+                print(f"IP {ip} has DDoS status: {ddos_status}")
 
-            if ddos_status == "blocked":
-                # If the IP is already blocked, notify the client and close the connection
+                if ddos_status == "blocked":
+                    # If the IP is already blocked, notify the client and close the connection
+                    self.send_data(client_socket, "You are blocked due to too many login attempts.")
+                    print(f"DDoS attack detected from {ip}. Closing connection.")
+                    client_socket.close()
+                    return False
+
+            # Update the connection count in ddos_dict
+            with self.mutex:
+                if ip in self.ddos_dict:
+                    self.ddos_dict[ip] += 1
+                else:
+                    self.ddos_dict[ip] = 1
+                current_connections = self.ddos_dict[ip]
+
+            # Check if the number of connections exceeds the allowed limit
+            if current_connections > MAX_CONNECTIONS_FROM_CLIENT:
+                print(f"IP {ip} exceeded the maximum allowed connections. Blocking IP.")
+                
+                with self.mutex:
+                    # Update the ddos_status in the database to "blocked"
+                    self.s_lib.update_ddos_status(ip, "blocked")
+                    self.ui.refresh_all_clients_table(self.dict_of_all_clients, 
+                                                    self.dict_of_active_clients)
+
+                # Notify the client and close the connection
                 self.send_data(client_socket, "You are blocked due to too many login attempts.")
                 print(f"DDoS attack detected from {ip}. Closing connection.")
                 client_socket.close()
                 return False
 
-        # Update the connection count in ddos_dict
-        if ip in self.ddos_dict:
-            self.ddos_dict[ip] += 1
-        else:
-            self.ddos_dict[ip] = 1
-
-        # Check if the number of connections exceeds the allowed limit
-        if self.ddos_dict[ip] > MAX_CONNECTIONS_FROM_CLIENT:
-            print(f"IP {ip} exceeded the maximum allowed connections. Blocking IP.")
-            # Update the ddos_status in the database to "blocked"
-            self.s_lib.update_ddos_status(ip, "blocked")
-            self.ui.refresh_all_clients_table(self.dict_of_all_clients, self.dict_of_active_clients)
-
-            # Notify the client and close the connection
-            self.send_data(client_socket, "You are blocked due to too many login attempts.")
-            print(f"DDoS attack detected from {ip}. Closing connection.")
-            client_socket.close()
+            # If the IP is not blocked, allow the connection
+            self.send_data(client_socket, "Connection accepted")
+            print(f"Connection from {ip} accepted.")
+            return True
+            
+        except Exception as e:
+            print(f"Error in ddos_check: {e}")
             return False
-
-        # If the IP is not blocked, allow the connection
-        self.send_data(client_socket, "Connection accepted")
-        print(f"Connection from {ip} accepted.")
-        return True
 
     def deal_maker(self, conn):
         try:

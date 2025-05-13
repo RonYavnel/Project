@@ -1,4 +1,7 @@
-SERVER_IP = "192.168.68.60"  
+import socket
+
+
+SERVER_IP = socket.gethostname()  
 PORT = 5000
 
 MAX_CLIENTS = 10
