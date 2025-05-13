@@ -34,5 +34,12 @@ def change_ddos_status(mydb, ip, status):
     mycursor.execute(sql, (status, ip))
     mydb.commit()
 
+def change_hashed_password(mydb, username, password):
+    mycursor = mydb.cursor()
+    hashed_password = tls.hash_data(username+password)
+    sql = "UPDATE users SET hashed_password = %s WHERE username = %s"
+    mycursor.execute(sql, (hashed_password, username))
+    mydb.commit()
 
-change_ddos_status(tls.mydb, "slava", "accepted")
+# change_ddos_status(tls.mydb, "slava", "accepted")
+change_hashed_password(tls.mydb, "tal", "1234")

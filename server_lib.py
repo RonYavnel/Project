@@ -20,7 +20,7 @@ class Server_Lib:
             
             # Receive and decrypt the password, then hash it
             password, received_data = self.server.recv_data(conn, received_data)
-            hashed_password = self.tls.hash_data(password)
+            hashed_password = self.tls.hash_data(username+password)
 
             while True:
                 if (not self.is_user_exists(username, hashed_password) and self.is_username_exists(username)): 

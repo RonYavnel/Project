@@ -18,6 +18,7 @@ class Server:
         self.dict_of_active_clients = {}  # (ip, port): username
         self.stock_prices_history = {}  # stock_symbol: [list of stock prices]
         self.mutex = threading.Lock()
+        self.is_running = True
         self.e = Encryption()
         self.tls = DB_Tools("stocktradingdb")
         self.s_lib = Server_Lib(self)
@@ -69,40 +70,76 @@ class Server:
         return data, received_data
 
     def handle_connections(self):
+        """Handle incoming client connections with proper shutdown support"""
         self.init_server()
         try:
-            while True:
+            while self.is_running:
                 try:
-                    # For each connection: accept it and start checking for overload and DDoS attacks
-                    conn, addr = self.server_socket.accept()
-                    total_num_of_connections = sum(self.ddos_dict.values())                    
-                    print(f"Total number of connections: {total_num_of_connections}")
-                    if total_num_of_connections >= MAX_CLIENTS:
-                        print("Maximum number of clients reached. Connection rejected.")
-                        self.send_data(conn, "Server is busy. Please try again later.")
-                        conn.close()
-                        continue
-                    else:
+                    # Set timeout for checking shutdown flag
+                    self.server_socket.settimeout(1.0)
+                    
+                    try:
+                        conn, addr = self.server_socket.accept()
+                        
+                        # Check total connections
+                        total_connections = sum(self.ddos_dict.values())
+                        print(f"Total number of connections: {total_connections}")
+                        
+                        # Handle server overload
+                        if total_connections >= MAX_CLIENTS:
+                            print("Maximum number of clients reached. Connection rejected.")
+                            self.send_data(conn, "Server is busy. Please try again later.")
+                            conn.close()
+                            continue
+                            
                         self.send_data(conn, "The server is not overloaded and accepts connections.")
 
-                    # Check for DDoS attacks
-                    if not self.ddos_check(conn):
-                        print(f"Connection from {addr} rejected due to DDoS protection.")
-                        # Don't need to close conn here as ddos_check already closes it
+                        # DDoS protection check
+                        if not self.ddos_check(conn):
+                            print(f"Connection from {addr} rejected due to DDoS protection.")
+                            continue
+
+                        print(f"Connection from {addr} accepted")
+                        
+                        # Start client handler thread
+                        client_thread = threading.Thread(
+                            target=self.deal_maker,
+                            args=(conn,),
+                            daemon=True  # Make thread daemon so it exits when main thread exits
+                        )
+                        client_thread.start()
+
+                    except socket.timeout:
+                        # Normal timeout, just continue to check shutdown flag
                         continue
-                    
-                    print(f"Connection from {addr} accepted")
-                    # Start a new thread for each client connection
-                    client_thread = threading.Thread(target=self.deal_maker, args=(conn,))
-                    client_thread.start()
-                except OSError as e:
-                    if e.errno != socket.EBADF:  # If it's not a "bad file descriptor" error
-                        print(f"Connection error: {e}")
+                        
+                    except OSError as e:
+                        # Handle socket errors
+                        if not self.is_running:
+                            # Clean shutdown in progress
+                            break
+                        print(f"Socket error: {e}")
                         continue
-                    else:
-                        raise  # Re-raise if it's a server socket error
-        except OSError as e:
-            print(f"Server socket closed: {e}")
+                        
+                except Exception as e:
+                    # Handle any other errors
+                    if not self.is_running:
+                        break
+                    print(f"Error handling connection: {e}")
+                    continue
+
+        except Exception as e:
+            # Handle fatal errors
+            print(f"Fatal server error: {e}")
+            
+        finally:
+            # Final cleanup
+            if self.server_socket:
+                try:
+                    self.server_socket.close()
+                except:
+                    pass
+            print("Server stopped accepting connections")
 
     def initialize_database_tables(self):
     
@@ -331,8 +368,33 @@ class Server:
         self.ui.show_combined_ui(self.dict_of_all_clients, self.dict_of_active_clients, self.tls.get_all_column_values( "stocks", "symbol"), self.stock_prices_history)
 
     def stop_server(self):
+        """Gracefully shutdown the server and all connections"""
+        print("Initiating server shutdown...")
+        self.is_running = False  # Set flag to stop the server
+        
+        # Close existing client connections from dict_of_active_clients
+        for (ip, port), username in self.dict_of_active_clients.copy().items():
+            try:
+                conn = socket.socket()
+                conn.connect((ip, port))
+                self.send_data(conn, "Server is shutting down")
+                conn.close()
+            except:
+                pass
+        
+        # Clear dictionaries
+        self.dict_of_active_clients.clear()
+        self.ddos_dict.clear()
+        
+        # Close server socket
         if self.server_socket:
-            self.server_socket.close()
+            try:
+                self.server_socket.close()
+            except:
+                pass
+                
+        print("Server shutdown completed")
+        exit(0)
 
     def run_whole_server(self):
         print("Server is running")

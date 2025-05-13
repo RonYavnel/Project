@@ -81,6 +81,22 @@ class ClientUI:
         pygame.mixer.music.load(path)
         pygame.mixer.music.play()
         
+    def show_logo_and_transition(self, next_screen_callback):
+        logo_frame = tk.Frame(self.root, bg=BG_COLOR)
+        logo_frame.pack(fill="both", expand=True)
+
+        original_image = Image.open("C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo.png").convert("RGBA")
+        resized_image = original_image.resize((768, 503), Image.Resampling.LANCZOS)
+        logo_image = resized_image.copy()
+
+        tk_image = ImageTk.PhotoImage(logo_image)
+        logo_label = tk.Label(logo_frame, image=tk_image, bg=BG_COLOR)
+        logo_label.image = tk_image
+        logo_label.pack(expand=True)
+
+        self.root.after(2000, lambda: self.fade_out_logo(logo_image, logo_label, logo_frame, next_screen_callback))
+
+
     def fade_out_logo(self, logo_image, logo_label, logo_frame, next_screen_callback):
         alpha = 255  
 
@@ -122,22 +138,6 @@ class ClientUI:
         if not ddos_response:
             return
         
-
-    def show_logo_and_transition(self, next_screen_callback):
-        logo_frame = tk.Frame(self.root, bg=BG_COLOR)
-        logo_frame.pack(fill="both", expand=True)
-
-        original_image = Image.open("C:\\Users\\ronya\\OneDrive\\Project\\FirstMVP\\nExchange_logo.png").convert("RGBA")
-        resized_image = original_image.resize((768, 503), Image.Resampling.LANCZOS)
-        logo_image = resized_image.copy()
-
-        tk_image = ImageTk.PhotoImage(logo_image)
-        logo_label = tk.Label(logo_frame, image=tk_image, bg=BG_COLOR)
-        logo_label.image = tk_image
-        logo_label.pack(expand=True)
-
-        self.root.after(2000, lambda: self.fade_out_logo(logo_image, logo_label, logo_frame, next_screen_callback))
-
     def create_login_frame(self):
         """Creates the login frame with vertically stacked elements"""
         # Create a container frame
@@ -430,7 +430,6 @@ class ClientUI:
 
             if result == '2':
                 messagebox.showerror("Error", "Username already exists. Please enter a new one.")
-                self.client.client_socket.close()
                 return
 
             # Get balance
@@ -542,6 +541,10 @@ class ClientUI:
 
             self.share_price_label.config(text="Select a stock")
 
+        except ConnectionResetError:
+            self.handle_server_disconnect()
+        except socket.error:
+            self.handle_server_disconnect()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to update stock list: {str(e)}")
 
@@ -616,8 +619,13 @@ class ClientUI:
             self.flash_widget(self.side_entry, 3)
             self.flash_widget(self.amount_entry, 3)
 
+        except ConnectionResetError:
+            self.handle_server_disconnect()
+        except socket.error:
+            self.handle_server_disconnect()
         except Exception as e:
-            self.handle_error(f"Failed to confirm stock: {str(e)}")
+            messagebox.showerror("Error", f"Failed to confirm stock: {str(e)}")
+            print(f"Error in stock confirmation: {str(e)}")
             
     def flash_widget(self, widget, times=3):
         """Creates a flashing highlight effect for a widget that stops on focus or click"""
@@ -802,13 +810,17 @@ class ClientUI:
             )
             self.ask_for_another_order()
 
+        except ConnectionResetError:
+            self.handle_server_disconnect()
+        except socket.error:
+            self.handle_server_disconnect()
         except Exception as e:
             messagebox.showerror("System Error", f"An unexpected error occurred: {str(e)}")
             print(f"Unexpected error in complete_order: {str(e)}")
             self.side_entry.delete(0, tk.END)
             self.amount_entry.delete(0, tk.END)
-            self.total_amount_label.config(text="Total Amount: $0")  # Also reset on error
-        
+            self.total_amount_label.config(text="Total Amount: $0")
+
     def show_transaction_confirmation(self, stock_symbol, order, updated_price, transaction_result):
         """Shows a modal transaction confirmation dialog."""
         # Play success sound
@@ -974,6 +986,11 @@ class ClientUI:
         # Delay the fade-out by 2 seconds before starting
         self.root.after(2000, start_fade)
 
+    def handle_server_disconnect(self):
+        """Handle server disconnection gracefully"""
+        messagebox.showerror("Server Disconnected", 
+                            "The server has been shut down. The application will now close.")
+        self.root.after(1000, self.root.destroy)  # Close after 1 second
 
 if __name__ == "__main__":
     from Client import Client

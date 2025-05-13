@@ -43,7 +43,7 @@ class ServerUI:
         logo_label.pack(expand=True)
 
         # Start fading out the logo after 2 seconds
-        root.after(2000, lambda: self.fade_out_logo(logo_image, logo_label, logo_frame, next_screen_callback))
+        root.after(2500, lambda: self.fade_out_logo(logo_image, logo_label, logo_frame, next_screen_callback))
 
     def fade_out_logo(self, logo_image, logo_label, logo_frame, next_screen_callback):
         alpha = 255  # Start fully opaque
@@ -196,55 +196,70 @@ class ServerUI:
         return tree  # Return the table so it can be updated later.
 
     def show_all_clients_table(self, root, dict_of_all_clients, dict_of_active_clients):
+        """Display table of all clients with their connection and DDoS status"""
         # Ensure dict_of_active_clients is a dictionary
         if not isinstance(dict_of_active_clients, dict):
             dict_of_active_clients = {}
 
-        # Create a space (a Frame) to hold the connected people table.
+        # Create frame for table with adjusted dimensions
         top_frame = Frame(root, width=800, height=300, bg=BG_COLOR)
-        top_frame.pack_propagate(False)  # Keep the frame from resizing.
-        top_frame.place(relx=0.27, rely=0.41, anchor="n")  # Position the frame.
+        top_frame.pack_propagate(False)
+        top_frame.place(relx=0.27, rely=0.41, anchor="n")
 
-        # Add a title "Connected People" above the table.
-        connected_people_label = Label(root, text="All Connected Clients", font=("Helvetica", 18, "bold"), bg=BG_COLOR)
-        connected_people_label.place(relx=0.34, rely=0.36, anchor="ne")  # Position the title.
+        # Add title label
+        connected_people_label = Label(root, 
+                                    text="All Connected Clients", 
+                                    font=("Helvetica", 18, "bold"), 
+                                    bg=BG_COLOR)
+        connected_people_label.place(relx=0.34, rely=0.36, anchor="ne")
 
-        # Define the column names for the table.
+        # Configure table columns
         columns = ("IP Address", "Username", "DDoS Status", "Connection Status")
-        # Create the table (a Treeview widget) to display the connected people.
-        tree = ttk.Treeview(top_frame, columns=columns, show="headings", height=5)
+        tree = ttk.Treeview(top_frame, 
+                        columns=columns, 
+                        show="headings", 
+                        height=8)  # Increased height to fill space
 
-        # Set up the headings for each column.
+        # Configure column headings and widths
+        column_widths = {
+            "IP Address": 150,
+            "Username": 100,
+            "DDoS Status": 100,
+            "Connection Status": 100
+        }
+        
         for col in columns:
-            tree.heading(col, text=col)  # Set the text for the heading.
-            tree.column(col, width=100, anchor="center")  # Set the width and alignment.
+            tree.heading(col, text=col)
+            tree.column(col, width=column_widths[col], anchor="center")
 
-        # Define tags for coloring rows
+        # Configure row colors
         tree.tag_configure("accepted", background="#d4edda")  # Light green for accepted
-        tree.tag_configure("blocked", background="#f8d7da")  # Light red for blocked
+        tree.tag_configure("blocked", background="#f8d7da")   # Light red for blocked
 
-        # Add each connected person to the table.
+        # Populate table with data
         for (ip, username), ddos_status in dict_of_all_clients.items():
+            # Determine row color
             tag = "accepted" if ddos_status.lower() == "accepted" else "blocked"
             
-            if any(ip == key[0] for key in dict_of_active_clients.keys()):
-                # If the IP is in the active clients, set the connection status to "Active"
-                connection_status = "Online"
-            else:
-                # If the IP is not in the active clients, set the connection status to "Offline"
-                connection_status = "Offline"
-                
-            tree.insert("", "end", values=(ip, username, ddos_status, connection_status), tags=(tag,))  # Add the data with the appropriate tag.
+            # Determine connection status
+            connection_status = "Online" if any(ip == key[0] for key in dict_of_active_clients.keys()) else "Offline"
+            
+            # Insert row with appropriate tag
+            tree.insert("", "end", 
+                    values=(ip, username, ddos_status, connection_status), 
+                    tags=(tag,))
 
-        # Add a scrollbar to the table, in case there are too many connected people to fit.
-        scrollbar = ttk.Scrollbar(top_frame, orient="vertical", command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set)  # Link the scrollbar to the table.
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(top_frame, 
+                                orient="vertical", 
+                                command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
 
-        # Positions the scrollbar and the table within the frame.
-        scrollbar.pack(side="right", fill="y")  # Place the scrollbar on the right.
-        tree.pack(side="left", fill="both", expand=True)  # Place the table and make it fill the space.
+        # Pack scrollbar and tree without extra padding
+        scrollbar.pack(side="right", fill="y", pady=0)
+        tree.pack(side="left", fill="both", expand=True, pady=0, padx=0)
 
-        return tree  # Give back the table so we can use it later.
+        return tree
     
     def initialize_ui_references(self, connected_clients_widget, transactions_widget):
         # Initializes the global references to the Treeview widgets.
@@ -355,12 +370,19 @@ class ServerUI:
         self.show_logo_and_transition(root, initialize_ui)
         self.play_intro_sound()
 
-        # Add a protocol handler to stop the server when the window is closed
-        root.protocol("WM_DELETE_WINDOW", self.on_close_callback)
-
+        root.protocol("WM_DELETE_WINDOW", lambda: self.handle_close(root))
+        
         root.mainloop()
-
+                
         return self.transactions_tree, self.connected_clients_tree
+
+        
+    def handle_close(self, root):
+        """Handle window closing event"""
+        if self.on_close_callback:
+            self.on_close_callback()  # Call server's stop function
+        root.quit()
+        root.destroy()
 
 
 # Example usage
